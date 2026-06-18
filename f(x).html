@@ -1,0 +1,2328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>f(x) — 专业函数绘图器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.2.1/math.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   CSS VARIABLES — LIGHT & DARK THEME
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --font-stack: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mono-stack: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+
+  /* Light theme */
+  --bg-canvas: #fafafa;
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --card-bg: #ffffff;
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #aeaeb2;
+  --accent: #007aff;
+  --accent-hover: #0063d1;
+  --accent-glow: rgba(0, 122, 255, 0.15);
+  --input-bg: #f2f2f7;
+  --grid-minor: rgba(0, 0, 0, 0.04);
+  --grid-major: rgba(0, 0, 0, 0.1);
+  --axis-color: rgba(0, 0, 0, 0.3);
+  --axis-label: rgba(0, 0, 0, 0.35);
+  --tooltip-bg: rgba(28, 28, 30, 0.92);
+  --tooltip-text: #f5f5f7;
+  --danger: #ff3b30;
+  --success: #34c759;
+  --separator: rgba(0, 0, 0, 0.06);
+  --panel-blur: 24px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --transition-fast: 0.18s cubic-bezier(0.25, 0.1, 0.25, 1);
+  --transition-smooth: 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+  --transition-bounce: 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+[data-theme="dark"] {
+  --bg-canvas: #000000;
+  --glass-bg: rgba(28, 28, 30, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --card-bg: #1c1c1e;
+  --text-primary: #f5f5f7;
+  --text-secondary: #98989d;
+  --text-tertiary: #636366;
+  --accent-glow: rgba(0, 122, 255, 0.2);
+  --input-bg: #2c2c2e;
+  --grid-minor: rgba(255, 255, 255, 0.03);
+  --grid-major: rgba(255, 255, 255, 0.08);
+  --axis-color: rgba(255, 255, 255, 0.25);
+  --axis-label: rgba(255, 255, 255, 0.35);
+  --separator: rgba(255, 255, 255, 0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: var(--font-stack);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  transition: background var(--transition-smooth), color var(--transition-smooth);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection { background: var(--accent); color: #fff; }
+
+/* ═══════════════════════════════════════════════════════════
+   CANVAS
+   ═══════════════════════════════════════════════════════════ */
+#plotCanvas {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  cursor: crosshair;
+  z-index: 0;
+  touch-action: none;
+}
+#plotCanvas.grabbing { cursor: grabbing; }
+
+/* ═══════════════════════════════════════════════════════════
+   GLASS PANEL MIXIN
+   ═══════════════════════════════════════════════════════════ */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: saturate(180%) blur(var(--panel-blur));
+  backdrop-filter: saturate(180%) blur(var(--panel-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  transition: background var(--transition-smooth), border-color var(--transition-smooth), box-shadow var(--transition-smooth);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CONTROL PANEL
+   ═══════════════════════════════════════════════════════════ */
+#controlPanel {
+  position: fixed;
+  top: 16px; left: 16px;
+  width: 340px;
+  max-height: calc(100vh - 32px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideIn 0.5s var(--transition-bounce);
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-20px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--separator);
+}
+
+.panel-title {
+  font-size: 17px; font-weight: 700;
+  letter-spacing: -0.4px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+.panel-title-icon {
+  height: 28px;
+  background: #ffffff;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  color: #000000; font-size: 12px; font-weight: 800;
+  font-family: var(--mono-stack);
+  padding: 0 6px;
+}
+
+.header-actions { display: flex; gap: 2px; }
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-tertiary) transparent;
+}
+.panel-body::-webkit-scrollbar { width: 4px; }
+.panel-body::-webkit-scrollbar-track { background: transparent; }
+.panel-body::-webkit-scrollbar-thumb { background: var(--text-tertiary); border-radius: 2px; }
+
+/* ═══════════════════════════════════════════════════════════
+   FUNCTION LAYER CARD
+   ═══════════════════════════════════════════════════════════ */
+.layer-card {
+  background: var(--card-bg);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--separator);
+  transition: all var(--transition-fast);
+  animation: cardSlideIn 0.35s var(--transition-bounce);
+}
+.layer-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.layer-card.removing {
+  animation: cardSlideOut 0.3s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+@keyframes cardSlideIn {
+  from { opacity: 0; transform: translateX(-12px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes cardSlideOut {
+  to { opacity: 0; transform: translateX(-12px) scale(0.97); max-height: 0; padding: 0; margin: 0; border-width: 0; overflow: hidden; }
+}
+
+/* Type Selector */
+.type-row {
+  display: flex; gap: 3px; margin-bottom: 8px;
+}
+.type-btn {
+  flex: 1; padding: 4px 0;
+  background: var(--input-bg);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 11px; font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  letter-spacing: 0.2px;
+  text-align: center;
+}
+.type-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.type-btn:hover:not(.active) {
+  background: var(--separator);
+  color: var(--text-primary);
+}
+
+/* Color Dot */
+.color-dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 2px solid rgba(0,0,0,0.08);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  position: relative;
+}
+[data-theme="dark"] .color-dot { border-color: rgba(255,255,255,0.15); }
+.color-dot:hover { transform: scale(1.2); box-shadow: 0 0 0 3px var(--accent-glow); }
+.color-dot input[type="color"] {
+  position: absolute; inset: -4px;
+  opacity: 0; cursor: pointer;
+  width: calc(100% + 8px); height: calc(100% + 8px);
+}
+
+/* Equation Input */
+.eq-input {
+  flex: 1;
+  background: var(--input-bg);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-family: var(--mono-stack);
+  font-size: 12.5px;
+  color: var(--text-primary);
+  outline: none;
+  transition: all var(--transition-fast);
+  min-width: 0;
+}
+.eq-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.eq-input.error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.12);
+}
+
+/* Layer Top Row */
+.layer-top {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+
+/* Icon Buttons */
+.icon-btn {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none;
+  border-radius: 6px;
+  color: var(--text-tertiary);
+  cursor: pointer; font-size: 14px;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+.icon-btn:hover { background: var(--input-bg); color: var(--text-primary); }
+.icon-btn.danger:hover { color: var(--danger); background: rgba(255,59,48,0.08); }
+.icon-btn.active { color: var(--accent); }
+
+/* Domain Restriction */
+.advanced-toggle {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 6px; cursor: pointer;
+  font-size: 11px; color: var(--text-tertiary);
+  font-weight: 600; letter-spacing: 0.3px;
+  user-select: none; transition: color var(--transition-fast);
+}
+.advanced-toggle:hover { color: var(--text-secondary); }
+.advanced-toggle .arrow {
+  display: inline-block;
+  transition: transform var(--transition-fast);
+  font-size: 9px;
+}
+.advanced-toggle.open .arrow { transform: rotate(90deg); }
+
+.advanced-body {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.advanced-body.open { max-height: 120px; }
+
+/* Analysis Panel */
+.analysis-toggle {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 6px; cursor: pointer;
+  font-size: 11px; color: var(--accent);
+  font-weight: 600; letter-spacing: 0.3px;
+  user-select: none; transition: color var(--transition-fast);
+}
+.analysis-toggle:hover { opacity: 0.8; }
+.analysis-toggle .arrow {
+  display: inline-block;
+  transition: transform var(--transition-fast);
+  font-size: 9px;
+}
+.analysis-toggle.open .arrow { transform: rotate(90deg); }
+
+.analysis-body {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.analysis-body.open { max-height: 800px; }
+
+.analysis-grid {
+  padding: 8px 0 2px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.analysis-item {
+  display: flex; gap: 8px; align-items: baseline;
+}
+.analysis-label {
+  flex-shrink: 0;
+  font-size: 11px; font-weight: 700;
+  color: var(--text-tertiary);
+  min-width: 72px;
+}
+.analysis-value {
+  font-size: 12px;
+  font-family: var(--mono-stack);
+  color: var(--text-primary);
+  line-height: 1.5;
+  word-break: break-all;
+}
+.analysis-section-title {
+  font-size: 10px; font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-top: 6px; margin-bottom: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--separator);
+}
+
+.domain-row {
+  display: flex; align-items: center; gap: 6px; margin-top: 8px;
+}
+.domain-label {
+  font-size: 10px; color: var(--text-tertiary);
+  font-weight: 700; letter-spacing: 0.5px;
+  text-transform: uppercase; flex-shrink: 0;
+}
+.domain-input {
+  flex: 1;
+  background: var(--input-bg);
+  border: 1.5px solid transparent;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: var(--mono-stack);
+  font-size: 11.5px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+.domain-input:focus { border-color: var(--accent); }
+
+/* Parametric sub-rows */
+.param-row {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+}
+.param-label {
+  font-family: var(--mono-stack); font-size: 12px;
+  color: var(--text-tertiary); width: 18px; text-align: right;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ADD FUNCTION BUTTON
+   ═══════════════════════════════════════════════════════════ */
+#addFnBtn {
+  width: calc(100% - 24px);
+  margin: 4px 12px 12px;
+  padding: 10px;
+  background: transparent;
+  border: 1.5px dashed var(--separator);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-family: var(--font-stack);
+}
+#addFnBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DYNAMIC VARIABLE SECTION
+   ═══════════════════════════════════════════════════════════ */
+.var-section {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--separator);
+}
+
+.var-section-title {
+  font-size: 10px; font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.var-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+}
+
+.var-label {
+  font-family: var(--mono-stack);
+  font-size: 16px; font-weight: 700;
+  color: var(--accent);
+  width: 18px; text-align: center;
+}
+
+.var-range-group {
+  flex: 1; display: flex; flex-direction: column; gap: 2px;
+}
+
+.var-slider {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 4px;
+  background: var(--separator);
+  border-radius: 2px; outline: none;
+  transition: background var(--transition-fast);
+}
+.var-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.var-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 2px 8px rgba(0,122,255,0.35);
+}
+.var-slider::-moz-range-thumb {
+  width: 16px; height: 16px;
+  border-radius: 50%; background: var(--accent);
+  cursor: pointer; border: none;
+}
+
+.var-value {
+  font-family: var(--mono-stack);
+  font-size: 12px; color: var(--text-secondary);
+  min-width: 42px; text-align: right;
+}
+
+.var-controls { display: flex; gap: 6px; margin-top: 8px; }
+
+.var-ctrl-btn {
+  flex: 1; padding: 6px 8px;
+  background: var(--input-bg);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 11px; font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  font-family: var(--font-stack);
+}
+.var-ctrl-btn:hover { background: var(--accent); color: #fff; }
+.var-ctrl-btn.active { background: var(--accent); color: #fff; }
+
+/* ═══════════════════════════════════════════════════════════
+   TOOLBAR (TOP RIGHT)
+   ═══════════════════════════════════════════════════════════ */
+#toolbar {
+  position: fixed;
+  top: 16px; right: 16px;
+  z-index: 100;
+  display: flex; gap: 8px;
+  animation: slideIn 0.5s var(--transition-bounce) 0.1s both;
+}
+
+.toolbar-btn {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  color: var(--text-secondary);
+  cursor: pointer; border: none;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: saturate(180%) blur(var(--panel-blur));
+  backdrop-filter: saturate(180%) blur(var(--panel-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  box-shadow: var(--glass-shadow);
+  transition: all var(--transition-fast);
+}
+.toolbar-btn:hover {
+  background: var(--accent); color: #fff;
+  border-color: var(--accent);
+  transform: scale(1.06);
+}
+.toolbar-btn.active {
+  background: var(--accent); color: #fff;
+  border-color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GRID TOGGLE (BOTTOM CENTER)
+   ═══════════════════════════════════════════════════════════ */
+#gridToggle {
+  position: fixed;
+  bottom: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 100;
+  display: flex; gap: 2px; padding: 3px;
+  animation: slideIn 0.5s var(--transition-bounce) 0.2s both;
+}
+
+.grid-btn {
+  padding: 6px 14px;
+  background: transparent; border: none;
+  border-radius: 7px;
+  font-size: 11.5px; font-weight: 600;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: var(--font-stack);
+}
+.grid-btn.active { background: var(--accent); color: #fff; }
+.grid-btn:hover:not(.active) { color: var(--text-primary); background: var(--input-bg); }
+
+/* ═══════════════════════════════════════════════════════════
+   ZOOM CONTROLS (BOTTOM RIGHT)
+   ═══════════════════════════════════════════════════════════ */
+#zoomControls {
+  position: fixed;
+  bottom: 16px; right: 16px;
+  z-index: 100;
+  display: flex; flex-direction: column; gap: 1px;
+  overflow: hidden;
+  animation: slideIn 0.5s var(--transition-bounce) 0.2s both;
+}
+
+.zoom-btn {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 300;
+  color: var(--text-secondary);
+  cursor: pointer; border: none; background: transparent;
+  transition: all var(--transition-fast);
+}
+.zoom-btn:hover { background: var(--input-bg); color: var(--text-primary); }
+.zoom-btn:active { transform: scale(0.92); }
+
+/* ═══════════════════════════════════════════════════════════
+   COORD DISPLAY (BOTTOM LEFT)
+   ═══════════════════════════════════════════════════════════ */
+#coordDisplay {
+  position: fixed;
+  bottom: 16px; left: 16px;
+  z-index: 100;
+  padding: 7px 12px;
+  font-family: var(--mono-stack);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  animation: slideIn 0.5s var(--transition-bounce) 0.2s both;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOOLTIP
+   ═══════════════════════════════════════════════════════════ */
+#tooltip {
+  position: fixed; z-index: 200;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 12px; line-height: 1.6;
+  pointer-events: none;
+  opacity: 0; transform: translateY(6px) scale(0.97);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  max-width: 280px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+#tooltip.visible {
+  opacity: 1; transform: translateY(0) scale(1);
+}
+.tt-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 6px; vertical-align: middle;
+}
+.tt-label { font-size: 10px; color: rgba(245,245,247,0.55); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 3px; }
+.tt-coord { font-family: var(--mono-stack); font-weight: 600; font-size: 13px; }
+.tt-tag {
+  display: inline-block;
+  margin-top: 4px; padding: 1px 6px;
+  border-radius: 4px; font-size: 10px; font-weight: 700;
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EXPORT MODAL
+   ═══════════════════════════════════════════════════════════ */
+#exportModal {
+  position: fixed; inset: 0; z-index: 500;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.45);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+#exportModal.visible { display: flex; }
+
+.export-content {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: 90vw; max-height: 90vh;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  animation: modalIn 0.35s var(--transition-bounce);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.export-content img {
+  max-width: 100%; max-height: 55vh;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
+.export-actions { display: flex; gap: 10px; }
+
+.btn {
+  padding: 10px 22px; border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: var(--font-stack);
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); transform: scale(1.02); }
+.btn-secondary { background: var(--input-bg); color: var(--text-primary); border: 1px solid var(--separator); }
+.btn-secondary:hover { background: var(--separator); }
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  #controlPanel { width: calc(100vw - 32px); }
+}
+</style>
+</head>
+<body data-theme="dark">
+
+<!-- ═══════════ CANVAS ═══════════ -->
+<canvas id="plotCanvas"></canvas>
+
+<!-- ═══════════ CONTROL PANEL ═══════════ -->
+<div id="controlPanel" class="glass">
+  <div class="panel-header">
+    <div class="panel-title">
+      <div class="panel-title-icon">ca1m</div>
+      f(x)
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="resetViewBtn" title="重置视图 (0)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 1 1 1.06 3.38" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 12V8h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="panel-body" id="layerList"></div>
+
+  <button id="addFnBtn" onclick="addLayer()">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    添加函数
+  </button>
+
+  <div class="var-section">
+    <div class="var-section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      动态变量
+      <button class="icon-btn" id="addVarBtn" title="添加变量" style="width:24px;height:24px;font-size:16px;color:var(--accent);">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div id="varList"></div>
+  </div>
+</div>
+
+<!-- ═══════════ TOOLBAR ═══════════ -->
+<div id="toolbar">
+  <button class="toolbar-btn" id="themeBtn" onclick="toggleTheme()" title="切换主题 (T)">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M9 1v2M9 15v2M1 9h2M15 9h2M3.34 3.34l1.42 1.42M13.24 13.24l1.42 1.42M3.34 14.66l1.42-1.42M13.24 4.76l1.42-1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+  </button>
+  <button class="toolbar-btn active" id="snapBtn" onclick="toggleSnap()" title="曲线吸附 (S)">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="3" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1" opacity="0.4"/><line x1="9" y1="0" x2="9" y2="4" stroke="currentColor" stroke-width="1" opacity="0.3"/><line x1="9" y1="14" x2="9" y2="18" stroke="currentColor" stroke-width="1" opacity="0.3"/><line x1="0" y1="9" x2="4" y2="9" stroke="currentColor" stroke-width="1" opacity="0.3"/><line x1="14" y1="9" x2="18" y2="9" stroke="currentColor" stroke-width="1" opacity="0.3"/></svg>
+  </button>
+  <button class="toolbar-btn" id="exportBtn" onclick="exportPNG()" title="导出 PNG (E)">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 12v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M9 2v9M5.5 7.5 9 11l3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<!-- ═══════════ GRID TOGGLE ═══════════ -->
+<div id="gridToggle" class="glass">
+  <button class="grid-btn active" data-grid="cartesian" onclick="setGrid('cartesian')">笛卡尔</button>
+  <button class="grid-btn" data-grid="polar" onclick="setGrid('polar')">极坐标</button>
+</div>
+
+<!-- ═══════════ ZOOM CONTROLS ═══════════ -->
+<div id="zoomControls" class="glass">
+  <button class="zoom-btn" onclick="zoomBy(1.4)" title="放大 (+)">+</button>
+  <button class="zoom-btn" onclick="zoomBy(1/1.4)" title="缩小 (−)">−</button>
+</div>
+
+<!-- ═══════════ COORD DISPLAY ═══════════ -->
+<div id="coordDisplay" class="glass">
+  <span id="coordText">x: 0.00 &nbsp; y: 0.00</span>
+</div>
+
+<!-- ═══════════ TOOLTIP ═══════════ -->
+<div id="tooltip"></div>
+
+<!-- ═══════════ EXPORT MODAL ═══════════ -->
+<div id="exportModal">
+  <div class="export-content">
+    <h3 style="font-size:17px;font-weight:700;">导出图像</h3>
+    <img id="exportPreview" src="" alt="预览">
+    <div class="export-actions">
+      <button class="btn btn-secondary" onclick="closeExportModal()">取消</button>
+      <button class="btn btn-primary" id="downloadBtn">下载 PNG</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   CORE APPLICATION STATE
+   ═══════════════════════════════════════════════════════════ */
+const canvas = document.getElementById('plotCanvas');
+const ctx = canvas.getContext('2d');
+
+const PALETTE = [
+  '#007aff', // Blue
+  '#af52de', // Purple
+  '#ff6259', // Coral
+  '#30d158', // Green
+  '#ff9f0a', // Orange
+  '#5e5ce6', // Indigo
+  '#ff375f', // Pink
+  '#64d2ff', // Teal
+];
+
+const state = {
+  // Viewport: math coords at center, scale = pixels per math unit
+  cx: 0, cy: 0, scale: 50,
+
+  // Interaction
+  isPanning: false,
+  panStart: null,
+  panOrigin: null,
+  mouse: { x: -9999, y: -9999 },
+
+  // Grid
+  gridType: 'cartesian',
+
+  // Snap
+  snapEnabled: true,
+  snapResult: null,
+
+  // Dynamic variables
+  variables: [{ name: 'a', value: 1, min: -10, max: 10, playing: false, dir: 1 }],
+
+  // Layers
+  layers: [],
+  nextId: 0,
+
+  // Cache
+  compiledCache: new Map(),
+
+  // Render
+  needsRender: true,
+
+  // Retina
+  dpr: Math.max(1, window.devicePixelRatio || 1),
+};
+
+/* ═══════════════════════════════════════════════════════════
+   MATH.JS — EXPRESSION COMPILATION & EVALUATION
+   ═══════════════════════════════════════════════════════════ */
+const evalScope = {};
+
+function syncScope() {
+  // Rebuild evalScope from state.variables
+  for (const key of Object.keys(evalScope)) delete evalScope[key];
+  for (const v of state.variables) evalScope[v.name] = v.value;
+}
+
+function compileExpr(expr) {
+  if (!expr || !expr.trim()) return null;
+  const key = expr.trim();
+  if (state.compiledCache.has(key)) return state.compiledCache.get(key);
+  try {
+    const node = math.parse(key);
+    const compiled = node.compile();
+    state.compiledCache.set(key, compiled);
+    return compiled;
+  } catch (e) {
+    return null;
+  }
+}
+
+function evalNum(compiled, vars) {
+  try {
+    const v = compiled.evaluate({ ...evalScope, ...vars });
+    const n = (typeof v === 'number') ? v : parseFloat(v);
+    return n;
+  } catch { return NaN; }
+}
+
+function invalidateCache() {
+  state.compiledCache.clear();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COORDINATE TRANSFORMS
+   ═══════════════════════════════════════════════════════════ */
+function m2s(mx, my) {
+  // Math → Screen
+  const w = canvas.width / state.dpr;
+  const h = canvas.height / state.dpr;
+  return [
+    (mx - state.cx) * state.scale + w * 0.5,
+    -(my - state.cy) * state.scale + h * 0.5,
+  ];
+}
+
+function s2m(sx, sy) {
+  // Screen → Math
+  const w = canvas.width / state.dpr;
+  const h = canvas.height / state.dpr;
+  return [
+    (sx - w * 0.5) / state.scale + state.cx,
+    -(sy - h * 0.5) / state.scale + state.cy,
+  ];
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LAYER MANAGEMENT
+   ═══════════════════════════════════════════════════════════ */
+function createLayer(opts = {}) {
+  return {
+    id: state.nextId++,
+    type: opts.type || 'explicit',
+    expr: opts.expr || '',
+    paramX: opts.paramX || '',
+    paramY: opts.paramY || '',
+    polarR: opts.polarR || '',
+    color: opts.color || PALETTE[state.layers.length % PALETTE.length],
+    visible: true,
+    domainMin: '',
+    domainMax: '',
+    advOpen: false,
+    analysisOpen: false,
+    error: false,
+  };
+}
+
+function addLayer(expr, type) {
+  const layer = createLayer({ expr, type });
+  state.layers.push(layer);
+  renderLayerList();
+  scheduleRender();
+  return layer;
+}
+
+function removeLayer(id) {
+  const card = document.querySelector(`.layer-card[data-id="${id}"]`);
+  if (card) {
+    card.classList.add('removing');
+    card.addEventListener('animationend', () => {
+      state.layers = state.layers.filter(l => l.id !== id);
+      renderLayerList();
+      scheduleRender();
+    }, { once: true });
+  } else {
+    state.layers = state.layers.filter(l => l.id !== id);
+    renderLayerList();
+    scheduleRender();
+  }
+}
+
+function updateLayer(id, patch) {
+  const layer = state.layers.find(l => l.id === id);
+  if (!layer) return;
+  Object.assign(layer, patch);
+  if ('expr' in patch || 'paramX' in patch || 'paramY' in patch || 'polarR' in patch) {
+    invalidateCache();
+    layer.error = false;
+  }
+  scheduleRender();
+}
+
+/* ─── RENDER LAYER LIST DOM ─── */
+function renderLayerList() {
+  const box = document.getElementById('layerList');
+  box.innerHTML = '';
+
+  state.layers.forEach(layer => {
+    const card = document.createElement('div');
+    card.className = 'layer-card';
+    card.dataset.id = layer.id;
+
+    // Build equation inputs based on type
+    let eqHTML = '';
+    if (layer.type === 'explicit') {
+      eqHTML = `
+        <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+          <span style="font-family:var(--mono-stack);font-size:12px;color:var(--text-tertiary);flex-shrink:0;">y =</span>
+          <input class="eq-input${layer.error ? ' error' : ''}" value="${esc(layer.expr)}"
+            data-id="${layer.id}" data-field="expr" placeholder="如 sin(x)·e^(-x/5)">
+        </div>`;
+    } else if (layer.type === 'parametric') {
+      eqHTML = `
+        <div style="flex:1;min-width:0;">
+          <div class="param-row">
+            <span class="param-label">x =</span>
+            <input class="eq-input" value="${esc(layer.paramX)}" data-id="${layer.id}" data-field="paramX" placeholder="cos(t)">
+          </div>
+          <div class="param-row">
+            <span class="param-label">y =</span>
+            <input class="eq-input" value="${esc(layer.paramY)}" data-id="${layer.id}" data-field="paramY" placeholder="sin(t)">
+          </div>
+        </div>`;
+    } else {
+      eqHTML = `
+        <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+          <span style="font-family:var(--mono-stack);font-size:12px;color:var(--text-tertiary);flex-shrink:0;">r =</span>
+          <input class="eq-input${layer.error ? ' error' : ''}" value="${esc(layer.polarR)}"
+            data-id="${layer.id}" data-field="polarR" placeholder="1 + cos(theta)">
+        </div>`;
+    }
+
+    card.innerHTML = `
+      <div class="type-row">
+        <button class="type-btn${layer.type === 'explicit' ? ' active' : ''}" data-id="${layer.id}" data-type="explicit">显式函数</button>
+        <button class="type-btn${layer.type === 'parametric' ? ' active' : ''}" data-id="${layer.id}" data-type="parametric">参数方程</button>
+        <button class="type-btn${layer.type === 'polar' ? ' active' : ''}" data-id="${layer.id}" data-type="polar">极坐标</button>
+      </div>
+      <div class="layer-top">
+        <div class="color-dot" style="background:${layer.color}">
+          <input type="color" value="${layer.color}" data-id="${layer.id}" data-field="color">
+        </div>
+        ${eqHTML}
+        <button class="icon-btn vis-btn${layer.visible ? '' : ' active'}" data-id="${layer.id}" title="切换可见性">
+          ${layer.visible
+            ? '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/></svg>'
+            : '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M1.5 8s2.5-4.5 6.5-4.5c1.1 0 2.1.3 3 .8M14.5 8s-.7 1.2-2 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'}
+        </button>
+        <button class="icon-btn danger del-btn" data-id="${layer.id}" title="删除">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="advanced-toggle${layer.advOpen ? ' open' : ''}" data-id="${layer.id}">
+        <span class="arrow">▸</span> 定义域限制
+      </div>
+      <div class="advanced-body${layer.advOpen ? ' open' : ''}">
+        <div class="domain-row">
+          <span class="domain-label">最小</span>
+          <input class="domain-input" value="${esc(layer.domainMin)}" data-id="${layer.id}" data-field="domainMin" placeholder="-∞">
+          <span class="domain-label">最大</span>
+          <input class="domain-input" value="${esc(layer.domainMax)}" data-id="${layer.id}" data-field="domainMax" placeholder="+∞">
+        </div>
+      </div>
+      <div class="analysis-toggle${layer.analysisOpen ? ' open' : ''}" data-id="${layer.id}" data-action="analysis">
+        <span class="arrow">▸</span> 函数分析
+      </div>
+      <div class="analysis-body${layer.analysisOpen ? ' open' : ''}" data-analysis="${layer.id}">
+        ${layer.analysisOpen ? renderAnalysisContent(layer) : ''}
+      </div>`;
+
+    box.appendChild(card);
+  });
+
+  // Attach events via delegation
+  attachLayerEvents();
+}
+
+function attachLayerEvents() {
+  const box = document.getElementById('layerList');
+
+  // Input changes
+  box.querySelectorAll('input[data-id]').forEach(input => {
+    const handler = () => {
+      const id = +input.dataset.id;
+      const field = input.dataset.field;
+      if (field === 'color') {
+        updateLayer(id, { color: input.value });
+        input.parentElement.style.background = input.value;
+      } else {
+        updateLayer(id, { [field]: input.value });
+      }
+    };
+    input.addEventListener('input', handler);
+    if (input.type === 'color') input.addEventListener('change', handler);
+  });
+
+  // Type buttons
+  box.querySelectorAll('.type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      updateLayer(+btn.dataset.id, { type: btn.dataset.type });
+      renderLayerList();
+    });
+  });
+
+  // Visibility toggle
+  box.querySelectorAll('.vis-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const layer = state.layers.find(l => l.id === +btn.dataset.id);
+      if (layer) {
+        layer.visible = !layer.visible;
+        renderLayerList();
+        scheduleRender();
+      }
+    });
+  });
+
+  // Delete
+  box.querySelectorAll('.del-btn').forEach(btn => {
+    btn.addEventListener('click', () => removeLayer(+btn.dataset.id));
+  });
+
+  // Advanced toggle
+  box.querySelectorAll('.advanced-toggle').forEach(tog => {
+    tog.addEventListener('click', () => {
+      const layer = state.layers.find(l => l.id === +tog.dataset.id);
+      if (layer) {
+        layer.advOpen = !layer.advOpen;
+        tog.classList.toggle('open');
+        tog.nextElementSibling.classList.toggle('open');
+      }
+    });
+  });
+
+  // Analysis toggle
+  box.querySelectorAll('.analysis-toggle').forEach(tog => {
+    tog.addEventListener('click', () => {
+      const layer = state.layers.find(l => l.id === +tog.dataset.id);
+      if (!layer) return;
+      layer.analysisOpen = !layer.analysisOpen;
+      tog.classList.toggle('open');
+      const body = tog.nextElementSibling;
+      if (layer.analysisOpen) {
+        body.innerHTML = renderAnalysisContent(layer);
+        body.classList.add('open');
+      } else {
+        body.classList.remove('open');
+      }
+    });
+  });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CANVAS SETUP & RESIZE
+   ═══════════════════════════════════════════════════════════ */
+function resizeCanvas() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  canvas.width = w * state.dpr;
+  canvas.height = h * state.dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+  scheduleRender();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER LOOP — requestAnimationFrame driven
+   ═══════════════════════════════════════════════════════════ */
+function scheduleRender() { state.needsRender = true; }
+
+function renderLoop() {
+  if (state.needsRender) {
+    state.needsRender = false;
+    render();
+  }
+  requestAnimationFrame(renderLoop);
+}
+
+function render() {
+  const w = canvas.width / state.dpr;
+  const h = canvas.height / state.dpr;
+  const dark = document.body.dataset.theme === 'dark';
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Background
+  ctx.fillStyle = dark ? '#000000' : '#fafafa';
+  ctx.fillRect(0, 0, w, h);
+
+  drawGrid(w, h, dark);
+  drawAxes(w, h, dark);
+
+  // Draw each function layer
+  for (const layer of state.layers) {
+    if (!layer.visible) continue;
+    try {
+      if (layer.type === 'explicit') drawExplicit(layer, w, h);
+      else if (layer.type === 'parametric') drawParametric(layer, w, h);
+      else if (layer.type === 'polar') drawPolar(layer, w, h);
+      layer.error = false;
+    } catch { layer.error = true; }
+  }
+
+  // Draw snap point overlay
+  drawSnapOverlay(w, h);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GRID RENDERING — Adaptive spacing
+   ═══════════════════════════════════════════════════════════ */
+function niceStep() {
+  // Find a "nice" grid spacing in pixels between 50–150
+  const targets = [1, 2, 5];
+  let mag = 0.01;
+  while (mag < 1e6) {
+    for (const t of targets) {
+      const step = t * mag;
+      if (step * state.scale >= 50 && step * state.scale <= 150) return step;
+    }
+    mag *= 10;
+  }
+  return 1;
+}
+
+function drawGrid(w, h, dark) {
+  if (state.gridType === 'cartesian') drawCartesianGrid(w, h, dark);
+  else drawPolarGrid(w, h, dark);
+}
+
+function drawCartesianGrid(w, h, dark) {
+  const step = niceStep();
+  const subDiv = 5;
+  const minor = step / subDiv;
+
+  const [x0, y1] = s2m(0, 0);
+  const [x1, y0] = s2m(w, h);
+
+  // Minor grid
+  ctx.strokeStyle = dark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.035)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  let s = Math.floor(x0 / minor) * minor;
+  for (let x = s; x <= x1; x += minor) {
+    const [sx] = m2s(x, 0);
+    ctx.moveTo(Math.round(sx) + 0.5, 0);
+    ctx.lineTo(Math.round(sx) + 0.5, h);
+  }
+  s = Math.floor(y0 / minor) * minor;
+  for (let y = s; y <= y1; y += minor) {
+    const [, sy] = m2s(0, y);
+    ctx.moveTo(0, Math.round(sy) + 0.5);
+    ctx.lineTo(w, Math.round(sy) + 0.5);
+  }
+  ctx.stroke();
+
+  // Major grid
+  ctx.strokeStyle = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)';
+  ctx.beginPath();
+  s = Math.floor(x0 / step) * step;
+  for (let x = s; x <= x1; x += step) {
+    const [sx] = m2s(x, 0);
+    ctx.moveTo(Math.round(sx) + 0.5, 0);
+    ctx.lineTo(Math.round(sx) + 0.5, h);
+  }
+  s = Math.floor(y0 / step) * step;
+  for (let y = s; y <= y1; y += step) {
+    const [, sy] = m2s(0, y);
+    ctx.moveTo(0, Math.round(sy) + 0.5);
+    ctx.lineTo(w, Math.round(sy) + 0.5);
+  }
+  ctx.stroke();
+
+  // Labels
+  drawCartesianLabels(w, h, dark, step, x0, x1, y0, y1);
+}
+
+function drawCartesianLabels(w, h, dark, step, x0, x1, y0, y1) {
+  const mono = getComputedStyle(document.documentElement).getPropertyValue('--mono-stack').trim();
+  ctx.fillStyle = dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)';
+  ctx.font = `500 10.5px ${mono}`;
+
+  const [, originSy] = m2s(0, 0);
+  const labelY = clamp(originSy + 14, 14, h - 6);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  let s = Math.floor(x0 / step) * step;
+  for (let x = s; x <= x1; x += step) {
+    if (Math.abs(x) < step * 0.01) continue;
+    const [sx] = m2s(x, 0);
+    if (sx > 20 && sx < w - 20) ctx.fillText(fmtNum(x), sx, labelY);
+  }
+
+  const [originSx] = m2s(0, 0);
+  const labelX = clamp(originSx - 8, 30, w - 6);
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  s = Math.floor(y0 / step) * step;
+  for (let y = s; y <= y1; y += step) {
+    if (Math.abs(y) < step * 0.01) continue;
+    const [, sy] = m2s(0, y);
+    if (sy > 14 && sy < h - 14) ctx.fillText(fmtNum(y), labelX, sy);
+  }
+}
+
+function drawPolarGrid(w, h, dark) {
+  const step = niceStep();
+  const [ox, oy] = m2s(0, 0);
+  const maxR = Math.hypot(
+    Math.max(Math.abs(s2m(0,0)[0]), Math.abs(s2m(w,0)[0])),
+    Math.max(Math.abs(s2m(0,0)[1]), Math.abs(s2m(0,h)[1]))
+  ) * 1.2;
+
+  const mono = getComputedStyle(document.documentElement).getPropertyValue('--mono-stack').trim();
+
+  // Concentric circles
+  for (let r = step; r <= maxR; r += step) {
+    const rpx = r * state.scale;
+    ctx.strokeStyle = dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rpx, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Label
+    ctx.fillStyle = dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)';
+    ctx.font = `500 10px ${mono}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(fmtNum(r), ox + rpx + 4, oy - 4);
+  }
+
+  // Radial lines
+  ctx.strokeStyle = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+  ctx.beginPath();
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(ox + Math.cos(a) * maxR * state.scale, oy - Math.sin(a) * maxR * state.scale);
+  }
+  ctx.stroke();
+
+  // Angle labels
+  ctx.fillStyle = dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)';
+  ctx.font = `500 9px ${mono}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const labelR = Math.min(30, maxR * state.scale * 0.15);
+  for (let deg = 0; deg < 360; deg += 30) {
+    const a = deg * Math.PI / 180;
+    ctx.fillText(deg + '°', ox + Math.cos(a) * labelR, oy - Math.sin(a) * labelR);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AXES RENDERING
+   ═══════════════════════════════════════════════════════════ */
+function drawAxes(w, h, dark) {
+  const [ox, oy] = m2s(0, 0);
+
+  ctx.strokeStyle = dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.22)';
+  ctx.lineWidth = 1.2;
+
+  // X axis
+  ctx.beginPath();
+  ctx.moveTo(0, Math.round(oy) + 0.5);
+  ctx.lineTo(w, Math.round(oy) + 0.5);
+  ctx.stroke();
+
+  // Y axis
+  ctx.beginPath();
+  ctx.moveTo(Math.round(ox) + 0.5, 0);
+  ctx.lineTo(Math.round(ox) + 0.5, h);
+  ctx.stroke();
+
+  // Origin dot
+  if (ox > 0 && ox < w && oy > 0 && oy < h) {
+    ctx.fillStyle = dark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.arc(ox, oy, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FUNCTION DRAWING — Explicit, Parametric, Polar
+   ═══════════════════════════════════════════════════════════ */
+function getDomain(layer) {
+  let lo = -Infinity, hi = Infinity;
+  if (layer.domainMin !== '' && isFinite(parseFloat(layer.domainMin))) lo = parseFloat(layer.domainMin);
+  if (layer.domainMax !== '' && isFinite(parseFloat(layer.domainMax))) hi = parseFloat(layer.domainMax);
+  return [lo, hi];
+}
+
+function drawExplicit(layer, w, h) {
+  const compiled = compileExpr(layer.expr);
+  if (!compiled) { layer.error = true; return; }
+
+  const [dLo, dHi] = getDomain(layer);
+  const [sx0] = s2m(0, 0);
+  const [sx1] = s2m(w, 0);
+  const xLo = Math.max(dLo, sx0 - 2);
+  const xHi = Math.min(dHi, sx1 + 2);
+  if (xLo >= xHi) return;
+
+  const N = Math.min(Math.round(w * 1.5), 3000);
+  const dx = (xHi - xLo) / N;
+
+  ctx.strokeStyle = layer.color;
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  let pen = false;
+  let prevSy = 0;
+
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const x = xLo + i * dx;
+    const y = evalNum(compiled, { x });
+
+    if (!isFinite(y) || Math.abs(y) > 1e8) {
+      pen = false;
+      continue;
+    }
+
+    const [sx, sy] = m2s(x, y);
+
+    // Discontinuity detection: huge jump in screen y
+    if (pen && Math.abs(sy - prevSy) > h * 0.6) {
+      ctx.moveTo(sx, sy);
+    } else if (!pen) {
+      ctx.moveTo(sx, sy);
+    } else {
+      ctx.lineTo(sx, sy);
+    }
+    pen = true;
+    prevSy = sy;
+  }
+  ctx.stroke();
+}
+
+function drawParametric(layer, w, h) {
+  const cX = compileExpr(layer.paramX);
+  const cY = compileExpr(layer.paramY);
+  if (!cX || !cY) { layer.error = true; return; }
+
+  const [tLo0, tHi0] = getDomain(layer);
+  const tLo = isFinite(tLo0) ? tLo0 : 0;
+  const tHi = isFinite(tHi0) ? tHi0 : Math.PI * 2;
+
+  const N = 3000;
+  const dt = (tHi - tLo) / N;
+
+  ctx.strokeStyle = layer.color;
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  let pen = false;
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const t = tLo + i * dt;
+    const x = evalNum(cX, { t });
+    const y = evalNum(cY, { t });
+    if (!isFinite(x) || !isFinite(y)) { pen = false; continue; }
+
+    const [sx, sy] = m2s(x, y);
+    if (!pen) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    pen = true;
+  }
+  ctx.stroke();
+}
+
+function drawPolar(layer, w, h) {
+  const compiled = compileExpr(layer.polarR);
+  if (!compiled) { layer.error = true; return; }
+
+  const [tLo0, tHi0] = getDomain(layer);
+  const tLo = isFinite(tLo0) ? tLo0 : 0;
+  const tHi = isFinite(tHi0) ? tHi0 : Math.PI * 2;
+
+  const N = 3000;
+  const dt = (tHi - tLo) / N;
+
+  ctx.strokeStyle = layer.color;
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  let pen = false;
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const theta = tLo + i * dt;
+    const r = evalNum(compiled, { theta });
+    if (!isFinite(r)) { pen = false; continue; }
+
+    const x = r * Math.cos(theta);
+    const y = r * Math.sin(theta);
+    const [sx, sy] = m2s(x, y);
+    if (!pen) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    pen = true;
+  }
+  ctx.stroke();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SNAP TO CURVE & SPECIAL POINT DETECTION
+   ═══════════════════════════════════════════════════════════ */
+function findSnap(sx, sy) {
+  if (!state.snapEnabled) return null;
+  const [mx, my] = s2m(sx, sy);
+  const SNAP_PX = 18;
+  let best = null;
+  let bestDist = SNAP_PX;
+
+  for (const layer of state.layers) {
+    if (!layer.visible) continue;
+
+    if (layer.type === 'explicit') {
+      const compiled = compileExpr(layer.expr);
+      if (!compiled) continue;
+
+      const y = evalNum(compiled, { x: mx });
+      if (!isFinite(y)) continue;
+
+      const [psx, psy] = m2s(mx, y);
+      const dist = Math.abs(psy - sy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = { sx: psx, sy: psy, mx, my: y, color: layer.color, layer, tag: null };
+      }
+    } else if (layer.type === 'polar') {
+      const compiled = compileExpr(layer.polarR);
+      if (!compiled) continue;
+
+      const [dLo0, dHi0] = getDomain(layer);
+      const tLo = isFinite(dLo0) ? dLo0 : 0;
+      const tHi = isFinite(dHi0) ? dHi0 : Math.PI * 2;
+
+      const S = 400;
+      const dt = (tHi - tLo) / S;
+      for (let i = 0; i <= S; i++) {
+        const theta = tLo + i * dt;
+        const r = evalNum(compiled, { theta });
+        if (!isFinite(r)) continue;
+        const px = r * Math.cos(theta);
+        const py = r * Math.sin(theta);
+        const [psx, psy] = m2s(px, py);
+        const dist = Math.hypot(psx - sx, psy - sy);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = { sx: psx, sy: psy, mx: px, my: py, color: layer.color, layer, tag: null };
+        }
+      }
+    } else if (layer.type === 'parametric') {
+      const cX = compileExpr(layer.paramX);
+      const cY = compileExpr(layer.paramY);
+      if (!cX || !cY) continue;
+
+      const [tLo0, tHi0] = getDomain(layer);
+      const tLo = isFinite(tLo0) ? tLo0 : 0;
+      const tHi = isFinite(tHi0) ? tHi0 : Math.PI * 2;
+
+      const S = 400;
+      const dt = (tHi - tLo) / S;
+      for (let i = 0; i <= S; i++) {
+        const t = tLo + i * dt;
+        const px = evalNum(cX, { t });
+        const py = evalNum(cY, { t });
+        if (!isFinite(px) || !isFinite(py)) continue;
+        const [psx, psy] = m2s(px, py);
+        const dist = Math.hypot(psx - sx, psy - sy);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = { sx: psx, sy: psy, mx: px, my: py, color: layer.color, layer, tag: null };
+        }
+      }
+    }
+  }
+
+  // Check for special points on the best-matching layer
+  if (best && best.layer.type === 'explicit') {
+    const specials = findSpecialPoints(best.layer);
+    for (const sp of specials) {
+      if (Math.hypot(sp.sx - best.sx, sp.sy - best.sy) < 12) {
+        best.tag = sp.tag;
+        break;
+      }
+    }
+  }
+
+  return best;
+}
+
+function findSpecialPoints(layer) {
+  const points = [];
+  if (layer.type !== 'explicit') return points;
+  const compiled = compileExpr(layer.expr);
+  if (!compiled) return points;
+
+  const [dLo, dHi] = getDomain(layer);
+  const [sx0] = s2m(0, 0);
+  const [sx1] = s2m(canvas.width / state.dpr, 0);
+  const xLo = Math.max(dLo, sx0 - 2);
+  const xHi = Math.min(dHi, sx1 + 2);
+  if (xLo >= xHi) return points;
+
+  const N = 600;
+  const dx = (xHi - xLo) / N;
+
+  let prevX = xLo;
+  let prevY = evalNum(compiled, { x: xLo });
+
+  for (let i = 1; i <= N; i++) {
+    const x = xLo + i * dx;
+    const y = evalNum(compiled, { x });
+    if (!isFinite(y) || !isFinite(prevY)) { prevX = x; prevY = y; continue; }
+
+    // Root detection (sign change)
+    if (prevY * y < 0) {
+      let lo = prevX, hi = x;
+      for (let j = 0; j < 30; j++) {
+        const mid = (lo + hi) * 0.5;
+        if (evalNum(compiled, { x: mid }) * evalNum(compiled, { x: lo }) <= 0) hi = mid; else lo = mid;
+      }
+      const rx = (lo + hi) * 0.5;
+      const [psx, psy] = m2s(rx, 0);
+      points.push({ sx: psx, sy: psy, mx: rx, my: 0, tag: '零点', color: layer.color });
+    }
+
+    // Y-intercept
+    if (prevX <= 0 && x > 0) {
+      const y0 = evalNum(compiled, { x: 0 });
+      if (isFinite(y0)) {
+        const [psx, psy] = m2s(0, y0);
+        points.push({ sx: psx, sy: psy, mx: 0, my: y0, tag: 'Y截距', color: layer.color });
+      }
+    }
+
+    // Extrema via sign change in finite difference
+    if (i >= 2) {
+      const ppx = xLo + (i - 2) * dx;
+      const ppy = evalNum(compiled, { x: ppx });
+      if (isFinite(ppy)) {
+        const d1 = prevY - ppy;
+        const d2 = y - prevY;
+        if (d1 * d2 < 0 && Math.abs(d1) > 1e-12) {
+          // Refine: ternary search
+          let lo = ppx, hi = x;
+          for (let j = 0; j < 30; j++) {
+            const m1 = lo + (hi - lo) / 3;
+            const m2 = hi - (hi - lo) / 3;
+            if (Math.abs(evalNum(compiled, { x: m1 })) < Math.abs(evalNum(compiled, { x: m2 }))) hi = m2; else lo = m1;
+          }
+          // Actually for extrema, use golden section to find max/min value
+          let glo = ppx, ghi = x;
+          const phi = (Math.sqrt(5) - 1) / 2;
+          for (let j = 0; j < 30; j++) {
+            const c = ghi - phi * (ghi - glo);
+            const d = glo + phi * (ghi - glo);
+            const fc = evalNum(compiled, { x: c });
+            const fd = evalNum(compiled, { x: d });
+            if ((d1 > 0) ? fc < fd : fc > fd) ghi = d; else glo = c;
+          }
+          const ex = (glo + ghi) * 0.5;
+          const ey = evalNum(compiled, { x: ex });
+          if (isFinite(ey)) {
+            const [psx, psy] = m2s(ex, ey);
+            points.push({ sx: psx, sy: psy, mx: ex, my: ey, tag: d1 > 0 ? '极大值' : '极小值', color: layer.color });
+          }
+        }
+      }
+    }
+
+    prevX = x;
+    prevY = y;
+  }
+
+  return points;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FUNCTION ANALYSIS — compute all properties for explicit f(x)
+   ═══════════════════════════════════════════════════════════ */
+function computeAnalysis(layer) {
+  if (layer.type !== 'explicit' || !layer.expr.trim()) return null;
+  const compiled = compileExpr(layer.expr);
+  if (!compiled) return null;
+
+  const [dLo, dHi] = getDomain(layer);
+  const scanLo = isFinite(dLo) ? dLo : -200;
+  const scanHi = isFinite(dHi) ? dHi : 200;
+  const N = 2000;
+  const dx = (scanHi - scanLo) / N;
+
+  // Safe evaluation helper
+  const f = (x) => {
+    try { const v = compiled.evaluate({ ...evalScope, x }); return (typeof v === 'number') ? v : parseFloat(v); }
+    catch { return NaN; }
+  };
+
+  // ── 1. X-intercepts (roots) ──
+  const roots = [];
+  let prevX = scanLo, prevY = f(scanLo);
+  for (let i = 1; i <= N; i++) {
+    const x = scanLo + i * dx;
+    const y = f(x);
+    if (isFinite(y) && isFinite(prevY) && prevY * y < 0) {
+      let lo = prevX, hi = x;
+      for (let j = 0; j < 40; j++) {
+        const mid = (lo + hi) * 0.5;
+        if (f(mid) * f(lo) <= 0) hi = mid; else lo = mid;
+      }
+      roots.push(((lo + hi) * 0.5));
+    }
+    if (isFinite(y)) { prevX = x; prevY = y; }
+  }
+
+  // ── 2. Y-intercept ──
+  const y0 = f(0);
+  const hasYInt = isFinite(y0);
+
+  // ── 3. Extrema (min/max) ──
+  const mins = [], maxs = [];
+  prevX = scanLo; prevY = f(scanLo);
+  let prevPrevY = NaN, prevPrevX = NaN;
+  for (let i = 1; i <= N; i++) {
+    const x = scanLo + i * dx;
+    const y = f(x);
+    if (isFinite(y) && isFinite(prevY) && isFinite(prevPrevY)) {
+      const d1 = prevY - prevPrevY;
+      const d2 = y - prevY;
+      if (d1 * d2 < 0 && Math.abs(d1) > 1e-14) {
+        let glo = prevPrevX, ghi = x;
+        const phi = (Math.sqrt(5) - 1) / 2;
+        for (let j = 0; j < 40; j++) {
+          const c = ghi - phi * (ghi - glo);
+          const d = glo + phi * (ghi - glo);
+          const isMax = d1 > 0;
+          if (isMax ? f(c) < f(d) : f(c) > f(d)) ghi = d; else glo = c;
+        }
+        const ex = (glo + ghi) * 0.5;
+        const ey = f(ex);
+        if (isFinite(ey)) {
+          (d1 > 0 ? maxs : mins).push({ x: ex, y: ey });
+        }
+      }
+    }
+    prevPrevY = prevY; prevPrevX = prevX;
+    prevX = x; prevY = y;
+  }
+
+  // ── 4. Inflection points (sign change in 2nd derivative) ──
+  const inflections = [];
+  prevX = scanLo; prevY = f(scanLo);
+  prevPrevY = NaN; prevPrevX = NaN;
+  for (let i = 1; i <= N; i++) {
+    const x = scanLo + i * dx;
+    const y = f(x);
+    if (isFinite(y) && isFinite(prevY) && isFinite(prevPrevY)) {
+      const d2a = (f(prevPrevX - dx) - 2 * prevPrevY + prevY) || 0;
+      const d2b = (prevPrevY - 2 * prevY + y) || 0;
+      // Use a wider stencil for better 2nd derivative
+      const x0 = prevPrevX, x1 = prevX, x2 = x;
+      const y0_ = prevPrevY, y1_ = prevY, y2_ = y;
+      const dd = (y2_ - 2 * y1_ + y0_) / (dx * dx);
+      const ddPrev = i >= 2 ? ((prevY - 2 * prevPrevY + f(prevPrevX - dx)) / (dx * dx)) : dd;
+      if (isFinite(dd) && isFinite(ddPrev) && dd * ddPrev < 0 && Math.abs(ddPrev) > 1e-16) {
+        // Binary search for inflection
+        let lo = prevPrevX, hi = x;
+        for (let j = 0; j < 40; j++) {
+          const mid = (lo + hi) * 0.5;
+          const ya = f(mid - dx), yb = f(mid), yc = f(mid + dx);
+          const dMid = isFinite(ya) && isFinite(yc) ? (ya - 2 * yb + yc) : 0;
+          if (dMid * (f(lo - dx) - 2 * f(lo) + f(lo + dx)) <= 0) hi = mid; else lo = mid;
+        }
+        const ix = (lo + hi) * 0.5;
+        const iy = f(ix);
+        if (isFinite(iy)) inflections.push({ x: ix, y: iy });
+      }
+    }
+    prevPrevY = prevY; prevPrevX = prevX;
+    prevX = x; prevY = y;
+  }
+
+  // ── 5. Vertical asymptotes (discontinuities) ──
+  const vAsymptotes = [];
+  prevX = scanLo; prevY = f(scanLo);
+  for (let i = 1; i <= N; i++) {
+    const x = scanLo + i * dx;
+    const y = f(x);
+    const leftOK = isFinite(prevY) && Math.abs(prevY) < 1e8;
+    const rightOK = isFinite(y) && Math.abs(y) < 1e8;
+    if (leftOK && rightOK && Math.abs(y - prevY) > 500) {
+      // Discontinuity: narrow it down
+      let lo = prevX, hi = x;
+      for (let j = 0; j < 20; j++) {
+        const mid = (lo + hi) * 0.5;
+        const fl = f((lo + mid) * 0.5), fr = f((mid + hi) * 0.5);
+        if (isFinite(fl) && Math.abs(fl) < 1e8 && isFinite(fr) && Math.abs(fr) < 1e8 && Math.abs(fr - fl) > 500) {
+          if (Math.abs(f(mid + dx) - f(mid - dx)) > Math.abs(f(mid))) hi = mid; else lo = mid;
+        } else { hi = mid; }
+      }
+      vAsymptotes.push(((lo + hi) * 0.5));
+    }
+    if (isFinite(y)) { prevX = x; prevY = y; }
+  }
+
+  // Also check for undefined points (NaN) that are surrounded by finite values
+  prevX = scanLo; prevY = f(scanLo);
+  for (let i = 1; i <= N; i++) {
+    const x = scanLo + i * dx;
+    const y = f(x);
+    if (isFinite(prevY) && !isFinite(y) && !isNaN(y) === false) {
+      // NaN transition
+    }
+    if (!isFinite(prevY) && !isNaN(prevY) && isFinite(y)) {
+      // Coming back from undefined — check if it's near an existing asymptote
+    }
+    prevX = x; prevY = y;
+  }
+
+  // ── 6. Horizontal asymptotes ──
+  let hAsymNeg = null, hAsymPos = null;
+  const checkH = (xVal) => { const v = f(xVal); return isFinite(v) && Math.abs(v) < 1e8 ? v : null; };
+  const y10 = checkH(-100), y20 = checkH(-50);
+  const y30 = checkH(100), y40 = checkH(50);
+  if (y10 !== null && y20 !== null && Math.abs(y10 - y20) < 0.01) hAsymNeg = y10;
+  if (y30 !== null && y40 !== null && Math.abs(y30 - y40) < 0.01) hAsymPos = y30;
+
+  // ── 7. Oblique asymptote y = kx + b ──
+  let oblique = null;
+  const tryOblique = (x1v, x2v) => {
+    const y1v = f(x1v), y2v = f(x2v);
+    if (!isFinite(y1v) || !isFinite(y2v)) return null;
+    const k = (y2v - y1v) / (x2v - x1v);
+    const b = y1v - k * x1v;
+    // Verify: f(x) - (kx+b) should be small for large x
+    const test1 = f(x1v * 1.5), test2 = f(x2v * 1.5);
+    if (!isFinite(test1) || !isFinite(test2)) return null;
+    const err1 = Math.abs(test1 - (k * x1v * 1.5 + b));
+    const err2 = Math.abs(test2 - (k * x2v * 1.5 + b));
+    if (err1 < 0.1 && err2 < 0.1 && Math.abs(k) > 0.001) return { k, b };
+    return null;
+  };
+  const oblNeg = tryOblique(-200, -100);
+  const oblPos = tryOblique(100, 200);
+  if (oblNeg && oblPos && Math.abs(oblNeg.k - oblPos.k) < 0.01 && Math.abs(oblNeg.b - oblPos.b) < 0.1) {
+    oblique = oblNeg;
+  } else if (oblNeg) {
+    oblique = oblNeg;
+  } else if (oblPos) {
+    oblique = oblPos;
+  }
+
+  // ── 8. Odd/Even parity ──
+  let parity = 'unknown';
+  const testPoints = [0.5, 1, 1.5, 2, 3, 5, 7, 10];
+  let isEven = true, isOdd = true;
+  for (const t of testPoints) {
+    const fp = f(t), fn = f(-t);
+    if (!isFinite(fp) || !isFinite(fn)) continue;
+    if (Math.abs(fp - fn) > 1e-6) isEven = false;
+    if (Math.abs(fp + fn) > 1e-6) isOdd = false;
+  }
+  if (isEven) parity = 'even';
+  else if (isOdd) parity = 'odd';
+
+  // ── 9. Monotonicity ──
+  const intervals = [];
+  const segSize = (scanHi - scanLo) / 20;
+  let segStart = scanLo, segDir = 0;
+  for (let i = 0; i <= 20; i++) {
+    const x = scanLo + i * segSize;
+    const xp = x + 0.0001;
+    const deriv = (f(xp) - f(x)) / 0.0001;
+    const dir = deriv > 0.001 ? 1 : deriv < -0.001 ? -1 : 0;
+    if (i === 0) { segDir = dir; continue; }
+    if (dir !== segDir && dir !== 0 && segDir !== 0) {
+      intervals.push({ lo: segStart, hi: x, dir: segDir });
+      segStart = x;
+      segDir = dir;
+    } else if (dir !== 0) {
+      segDir = dir;
+    }
+  }
+  intervals.push({ lo: segStart, hi: scanHi, dir: segDir });
+
+  // ── 10. Range (approximate) ──
+  let rangeMin = Infinity, rangeMax = -Infinity;
+  for (let i = 0; i <= N; i++) {
+    const x = scanLo + i * dx;
+    const y = f(x);
+    if (isFinite(y) && Math.abs(y) < 1e6) { rangeMin = Math.min(rangeMin, y); rangeMax = Math.max(rangeMax, y); }
+  }
+
+  return { roots, y0: hasYInt ? y0 : null, mins, maxs, inflections, vAsymptotes, hAsymNeg, hAsymPos, oblique, parity, intervals, rangeMin: isFinite(rangeMin) ? rangeMin : null, rangeMax: isFinite(rangeMax) ? rangeMax : null };
+}
+
+function renderAnalysisContent(layer) {
+  const a = computeAnalysis(layer);
+  if (!a) return '<div style="padding:8px 0;font-size:12px;color:var(--text-tertiary);">请输入有效的函数表达式</div>';
+
+  const fm = (n) => fmtNum(n);
+  const fp = (n) => { const s = fm(n); return n >= 0 ? s : s; };
+
+  let html = '<div class="analysis-grid">';
+
+  // Domain
+  html += `<div class="analysis-item"><span class="analysis-label">定义域</span><span class="analysis-value">x ∈ ℝ${layer.domainMin || layer.domainMax ? `, ${layer.domainMin || '-∞'} < x < ${layer.domainMax || '+∞'}` : ''}</span></div>`;
+
+  // Range
+  if (a.rangeMin !== null && a.rangeMax !== null) {
+    const rStr = Math.abs(a.rangeMax - a.rangeMin) > 1e4
+      ? `y ∈ (${fm(a.rangeMin)}, ${fm(a.rangeMax)})`
+      : `y ∈ [${fm(a.rangeMin)}, ${fm(a.rangeMax)}]`;
+    html += `<div class="analysis-item"><span class="analysis-label">值域</span><span class="analysis-value">${rStr}</span></div>`;
+  }
+
+  // X-intercepts
+  html += `<div class="analysis-item"><span class="analysis-label">X轴截距</span><span class="analysis-value">${
+    a.roots.length > 0
+      ? a.roots.map(r => `(${fm(r)}, 0)`).join('  ')
+      : '此函数没有X轴截距'
+  }</span></div>`;
+
+  // Y-intercept
+  html += `<div class="analysis-item"><span class="analysis-label">Y轴截距</span><span class="analysis-value">${
+    a.y0 !== null ? `(0, ${fm(a.y0)})` : '此函数没有Y轴截距'
+  }</span></div>`;
+
+  // Minima
+  html += `<div class="analysis-item"><span class="analysis-label">极小值</span><span class="analysis-value">${
+    a.mins.length > 0
+      ? a.mins.map(m => `(${fm(m.x)}, ${fm(m.y)})`).join('  ')
+      : '此函数没有任何极小值点'
+  }</span></div>`;
+
+  // Maxima
+  html += `<div class="analysis-item"><span class="analysis-label">极大值</span><span class="analysis-value">${
+    a.maxs.length > 0
+      ? a.maxs.map(m => `(${fm(m.x)}, ${fm(m.y)})`).join('  ')
+      : '此函数没有任何极大值点'
+  }</span></div>`;
+
+  // Inflection points
+  html += `<div class="analysis-item"><span class="analysis-label">拐点</span><span class="analysis-value">${
+    a.inflections.length > 0
+      ? a.inflections.map(p => `(${fm(p.x)}, ${fm(p.y)})`).join('  ')
+      : '此函数没有任何拐点'
+  }</span></div>`;
+
+  // Vertical asymptotes
+  html += `<div class="analysis-item"><span class="analysis-label">垂直渐近线</span><span class="analysis-value">${
+    a.vAsymptotes.length > 0
+      ? a.vAsymptotes.map(v => `x = ${fm(v)}`).join('  ')
+      : '此函数没有任何垂直渐近线'
+  }</span></div>`;
+
+  // Horizontal asymptotes
+  const hLines = [];
+  if (a.hAsymNeg !== null) hLines.push(`y = ${fm(a.hAsymNeg)}`);
+  if (a.hAsymPos !== null && (hLines.length === 0 || Math.abs(a.hAsymNeg - a.hAsymPos) > 0.01)) hLines.push(`y = ${fm(a.hAsymPos)}`);
+  html += `<div class="analysis-item"><span class="analysis-label">水平渐近线</span><span class="analysis-value">${
+    hLines.length > 0 ? hLines.join('  ') : '此函数没有任何水平渐近线'
+  }</span></div>`;
+
+  // Oblique asymptote
+  html += `<div class="analysis-item"><span class="analysis-label">斜渐近线</span><span class="analysis-value">${
+    a.oblique
+      ? `y = ${fm(a.oblique.k)}x${a.oblique.b >= 0 ? ' + ' : ' - '}${fm(Math.abs(a.oblique.b))}`
+      : '此函数没有任何斜渐近线'
+  }</span></div>`;
+
+  // Odd/Even
+  html += `<div class="analysis-item"><span class="analysis-label">奇偶性</span><span class="analysis-value">${
+    a.parity === 'odd' ? '奇函数' : a.parity === 'even' ? '偶函数' : '非奇非偶函数'
+  }</span></div>`;
+
+  // Monotonicity
+  const monoStr = a.intervals.length > 0
+    ? a.intervals.map(iv => {
+        const lo = iv.lo <= -199 ? '-∞' : fm(iv.lo);
+        const hi = iv.hi >= 199 ? '+∞' : fm(iv.hi);
+        const arrow = iv.dir > 0 ? '↑' : iv.dir < 0 ? '↓' : '→';
+        return `(${lo}, ${hi}) ${arrow}`;
+      }).join('  ')
+    : '无法确定';
+  html += `<div class="analysis-item"><span class="analysis-label">单调性</span><span class="analysis-value">${monoStr}</span></div>`;
+
+  html += '</div>';
+  return html;
+}
+
+/* ─── SNAP OVERLAY ─── */
+function drawSnapOverlay(w, h) {
+  const snap = state.snapResult;
+  if (!snap) return;
+
+  const { sx, sy, color, tag } = snap;
+
+  // Glow
+  const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, 14);
+  grad.addColorStop(0, color + '50');
+  grad.addColorStop(1, color + '00');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(sx, sy, 14, 0, Math.PI * 2);
+  ctx.fill();
+
+  // White ring + colored center
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(sx, sy, 5.5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tag label for special points
+  if (tag) {
+    const mono = getComputedStyle(document.documentElement).getPropertyValue('--mono-stack').trim();
+    ctx.font = `bold 9.5px ${mono}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+
+    // Background pill
+    const tw = ctx.measureText(tag).width + 10;
+    const px = sx - tw / 2;
+    const py = sy - 16;
+    ctx.fillStyle = color;
+    roundRect(ctx, px, py, tw, 15, 4);
+    ctx.fill();
+
+    ctx.fillStyle = '#fff';
+    ctx.fillText(tag, sx, sy - 5);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EVENT HANDLERS — Pan, Zoom, Touch
+   ═══════════════════════════════════════════════════════════ */
+
+// ─── POINTER (mouse + touch unified) ───
+canvas.addEventListener('pointerdown', e => {
+  if (e.button !== 0 && e.pointerType === 'mouse') return;
+  state.isPanning = true;
+  state.panStart = { x: e.clientX, y: e.clientY };
+  state.panOrigin = { cx: state.cx, cy: state.cy };
+  canvas.classList.add('grabbing');
+  canvas.setPointerCapture(e.pointerId);
+});
+
+canvas.addEventListener('pointermove', e => {
+  state.mouse.x = e.clientX;
+  state.mouse.y = e.clientY;
+
+  if (state.isPanning) {
+    const dx = e.clientX - state.panStart.x;
+    const dy = e.clientY - state.panStart.y;
+    state.cx = state.panOrigin.cx - dx / state.scale;
+    state.cy = state.panOrigin.cy + dy / state.scale;
+    scheduleRender();
+  } else {
+    updateCoordDisplay();
+    updateSnap();
+  }
+});
+
+canvas.addEventListener('pointerup', () => {
+  state.isPanning = false;
+  canvas.classList.remove('grabbing');
+});
+
+canvas.addEventListener('pointercancel', () => {
+  state.isPanning = false;
+  canvas.classList.remove('grabbing');
+});
+
+// ─── WHEEL ZOOM (smooth, centered on cursor) ───
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = Math.pow(1.001, -e.deltaY);
+  zoomAt(e.clientX, e.clientY, factor);
+}, { passive: false });
+
+function zoomAt(sx, sy, factor) {
+  const [mx, my] = s2m(sx, sy);
+  state.scale = clamp(state.scale * factor, 0.5, 1e6);
+  const w = canvas.width / state.dpr;
+  const h = canvas.height / state.dpr;
+  state.cx = mx - (sx - w * 0.5) / state.scale;
+  state.cy = my + (sy - h * 0.5) / state.scale;
+  scheduleRender();
+}
+
+function zoomBy(factor) {
+  const w = canvas.width / state.dpr;
+  const h = canvas.height / state.dpr;
+  zoomAt(w * 0.5, h * 0.5, factor);
+}
+
+// ─── THEME ───
+function toggleTheme() {
+  const body = document.body;
+  body.dataset.theme = body.dataset.theme === 'dark' ? 'light' : 'dark';
+  scheduleRender();
+}
+
+// ─── SNAP ───
+function toggleSnap() {
+  state.snapEnabled = !state.snapEnabled;
+  document.getElementById('snapBtn').classList.toggle('active', state.snapEnabled);
+  if (!state.snapEnabled) { state.snapResult = null; hideTooltip(); scheduleRender(); }
+}
+
+// ─── GRID ───
+function setGrid(type) {
+  state.gridType = type;
+  document.querySelectorAll('.grid-btn').forEach(b => b.classList.toggle('active', b.dataset.grid === type));
+  scheduleRender();
+}
+
+// ─── RESET VIEW ───
+document.getElementById('resetViewBtn').addEventListener('click', resetView);
+function resetView() {
+  state.cx = 0; state.cy = 0; state.scale = 50;
+  scheduleRender();
+}
+
+// ─── COORD DISPLAY ───
+function updateCoordDisplay() {
+  const [mx, my] = s2m(state.mouse.x, state.mouse.y);
+  document.getElementById('coordText').textContent = `x: ${fmtNum(mx)}   y: ${fmtNum(my)}`;
+}
+
+// ─── SNAP UPDATE ───
+function updateSnap() {
+  if (!state.snapEnabled || state.isPanning) return;
+  const snap = findSnap(state.mouse.x, state.mouse.y);
+  state.snapResult = snap;
+
+  if (snap) {
+    showTooltip(snap.sx, snap.sy, snap.mx, snap.my, snap.color, snap.layer, snap.tag);
+  } else {
+    hideTooltip();
+  }
+  scheduleRender();
+}
+
+function showTooltip(sx, sy, mx, my, color, layer, tag) {
+  const tt = document.getElementById('tooltip');
+  const fnStr = layer.type === 'explicit' ? `y = ${layer.expr}` :
+                layer.type === 'polar' ? `r = ${layer.polarR}` :
+                `(${layer.paramX}, ${layer.paramY})`;
+
+  let html = `<div class="tt-label"><span class="tt-dot" style="background:${color}"></span>${esc(fnStr)}</div>`;
+  html += `<div class="tt-coord">(${fmtNum(mx)}, ${fmtNum(my)})</div>`;
+  if (tag) html += `<div><span class="tt-tag" style="background:${color}">${tag}</span></div>`;
+
+  tt.innerHTML = html;
+
+  const pad = 18;
+  let tx = sx + pad;
+  let ty = sy - pad - 40;
+  if (tx + 220 > window.innerWidth) tx = sx - 220 - pad;
+  if (ty < 8) ty = sy + pad;
+  if (ty + 80 > window.innerHeight) ty = window.innerHeight - 88;
+
+  tt.style.left = tx + 'px';
+  tt.style.top = ty + 'px';
+  tt.classList.add('visible');
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('visible');
+}
+
+/* ─── DYNAMIC VARIABLES (MULTI) ─── */
+const NEXT_LETTERS = 'abcdefghijklmnopqrstuvwxyz';
+
+function getNextVarName() {
+  const used = new Set(state.variables.map(v => v.name));
+  for (const c of NEXT_LETTERS) if (!used.has(c)) return c;
+  return 'v' + state.variables.length;
+}
+
+function addVariable() {
+  const name = getNextVarName();
+  state.variables.push({ name, value: 1, min: -10, max: 10, playing: false, dir: 1 });
+  syncScope();
+  invalidateCache();
+  renderVarList();
+  scheduleRender();
+}
+
+function removeVariable(name) {
+  if (state.variables.length <= 1) return;
+  state.variables = state.variables.filter(v => v.name !== name);
+  syncScope();
+  invalidateCache();
+  renderVarList();
+  scheduleRender();
+}
+
+function toggleVarPlay(name) {
+  const v = state.variables.find(v => v.name === name);
+  if (!v) return;
+  v.playing = !v.playing;
+  renderVarList();
+  if (v.playing) animateVars();
+}
+
+function resetVariable(name) {
+  const v = state.variables.find(v => v.name === name);
+  if (!v) return;
+  v.value = 1; v.dir = 1;
+  syncScope();
+  renderVarList();
+  scheduleRender();
+}
+
+function animateVars() {
+  let anyPlaying = false;
+  for (const v of state.variables) {
+    if (!v.playing) continue;
+    anyPlaying = true;
+    v.value += 0.03 * v.dir;
+    if (v.value >= v.max) { v.value = v.max; v.dir = -1; }
+    if (v.value <= v.min) { v.value = v.min; v.dir = 1; }
+  }
+  if (!anyPlaying) return;
+  syncScope();
+  renderVarList();
+  scheduleRender();
+  requestAnimationFrame(animateVars);
+}
+
+function togglePlayAll() {
+  const anyPlaying = state.variables.some(v => v.playing);
+  for (const v of state.variables) v.playing = !anyPlaying;
+  renderVarList();
+  if (!anyPlaying) animateVars();
+}
+
+function renderVarList() {
+  const box = document.getElementById('varList');
+  box.innerHTML = '';
+
+  state.variables.forEach(v => {
+    const card = document.createElement('div');
+    card.className = 'var-row';
+    card.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+
+    card.innerHTML = `
+      <span class="var-label">${esc(v.name)}</span>
+      <div class="var-range-group" style="flex:1;display:flex;flex-direction:column;gap:2px;">
+        <input type="range" class="var-slider" data-var="${v.name}"
+          min="${v.min}" max="${v.max}" step="0.01" value="${v.value}">
+      </div>
+      <span class="var-value" data-var-val="${v.name}">${v.value.toFixed(2)}</span>
+      <button class="icon-btn var-play-btn" data-var-play="${v.name}" title="${v.playing ? '暂停' : '播放'}"
+        style="color:${v.playing ? 'var(--accent)' : 'var(--text-tertiary)'}">
+        ${v.playing
+          ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><rect x="1" y="1" width="3.5" height="10" rx="1"/><rect x="7.5" y="1" width="3.5" height="10" rx="1"/></svg>'
+          : '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M2.5 1v10l8.5-5z"/></svg>'}
+      </button>
+      <button class="icon-btn" data-var-reset="${v.name}" title="重置" style="font-size:12px;">↺</button>
+      ${state.variables.length > 1
+        ? `<button class="icon-btn danger" data-var-del="${v.name}" title="删除" style="font-size:12px;">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>`
+        : ''}
+    `;
+    box.appendChild(card);
+  });
+
+  // Event delegation
+  box.querySelectorAll('input[data-var]').forEach(slider => {
+    slider.addEventListener('input', () => {
+      const v = state.variables.find(v => v.name === slider.dataset.var);
+      if (!v) return;
+      v.value = parseFloat(slider.value);
+      syncScope();
+      const valEl = box.querySelector(`[data-var-val="${v.name}"]`);
+      if (valEl) valEl.textContent = v.value.toFixed(2);
+      scheduleRender();
+    });
+  });
+
+  box.querySelectorAll('[data-var-play]').forEach(btn => {
+    btn.addEventListener('click', () => toggleVarPlay(btn.dataset.varPlay));
+  });
+
+  box.querySelectorAll('[data-var-reset]').forEach(btn => {
+    btn.addEventListener('click', () => resetVariable(btn.dataset.varReset));
+  });
+
+  box.querySelectorAll('[data-var-del]').forEach(btn => {
+    btn.addEventListener('click', () => removeVariable(btn.dataset.varDel));
+  });
+}
+
+document.getElementById('addVarBtn').addEventListener('click', addVariable);
+
+/* ─── EXPORT PNG ─── */
+function exportPNG() {
+  const dataURL = canvas.toDataURL('image/png');
+  const modal = document.getElementById('exportModal');
+  document.getElementById('exportPreview').src = dataURL;
+  modal.classList.add('visible');
+
+  document.getElementById('downloadBtn').onclick = () => {
+    const a = document.createElement('a');
+    a.href = dataURL;
+    a.download = `graph_${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    closeExportModal();
+  };
+}
+
+function closeExportModal() {
+  document.getElementById('exportModal').classList.remove('visible');
+}
+
+/* ─── KEYBOARD SHORTCUTS ─── */
+document.addEventListener('keydown', e => {
+  // Don't intercept if typing in an input
+  if (e.target.tagName === 'INPUT') return;
+
+  switch (e.key) {
+    case 'Escape': closeExportModal(); break;
+    case '=': case '+': zoomBy(1.4); break;
+    case '-': case '_': zoomBy(1/1.4); break;
+    case '0': resetView(); break;
+    case 't': case 'T': toggleTheme(); break;
+    case 's': case 'S': toggleSnap(); break;
+    case 'e': case 'E': exportPNG(); break;
+    case ' ': e.preventDefault(); togglePlayAll(); break;
+  }
+});
+
+/* ─── RESIZE ─── */
+window.addEventListener('resize', resizeCanvas);
+
+/* ─── EXPORT MODAL CLOSE ON BACKDROP ─── */
+document.getElementById('exportModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeExportModal();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   UTILITY FUNCTIONS
+   ═══════════════════════════════════════════════════════════ */
+function fmtNum(n) {
+  if (!isFinite(n)) return '—';
+  if (Math.abs(n) < 1e-12) return '0';
+  if (Math.abs(n) >= 1e6 || Math.abs(n) < 0.001) return n.toExponential(2);
+  let s = n.toPrecision(6);
+  // Strip trailing zeros after decimal
+  if (s.includes('.')) s = s.replace(/\.?0+$/, '');
+  return s;
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INITIALIZATION
+   ═══════════════════════════════════════════════════════════ */
+function init() {
+  resizeCanvas();
+  renderLoop();
+  syncScope();
+  renderVarList();
+  renderLayerList();
+}
+
+init();
+</script>
+</body>
+</html>
