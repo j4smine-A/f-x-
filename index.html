@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>f(x)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.2.1/math.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <style>
 /* ═══════════════════════════════════════════════════════════
    CSS VARIABLES — LIGHT & DARK THEME
@@ -27,7 +29,7 @@
   --accent-glow: rgba(0, 122, 255, 0.15);
   --input-bg: #f2f2f7;
   --grid-minor: rgba(0, 0, 0, 0.04);
-  --grid-major: rgba(0, 0, 0, 0.1);
+  --grid-major: rgba(99, 33, 33, 0.1);
   --axis-color: rgba(0, 0, 0, 0.3);
   --axis-label: rgba(0, 0, 0, 0.35);
   --tooltip-bg: rgba(28, 28, 30, 0.92);
@@ -149,6 +151,49 @@ html, body {
 
 .header-actions { display: flex; gap: 2px; }
 
+/* Panel collapse */
+#controlPanel {
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.35s ease;
+}
+#controlPanel.collapsed .panel-body,
+#controlPanel.collapsed #addFnBtn,
+#controlPanel.collapsed .var-section {
+  display: none;
+}
+#controlPanel.collapsed {
+  width: auto;
+  max-height: none;
+}
+#collapseBtn {
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+#controlPanel.collapsed #collapseBtn {
+  transform: rotate(180deg);
+}
+
+/* Swipe hint for touch — small pill that fades */
+#panelToggleHint {
+  position: fixed; top: 50%; left: 0; z-index: 101;
+  width: 28px; height: 56px;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-left: none;
+  border-radius: 0 12px 12px 0;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+  transform: translateY(-50%);
+  transition: opacity 0.3s ease, left 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+  opacity: 0; pointer-events: none;
+}
+#panelToggleHint.visible {
+  opacity: 0.7; pointer-events: auto;
+}
+#panelToggleHint.visible:hover { opacity: 1; }
+
 .panel-body {
   flex: 1;
   overflow-y: auto;
@@ -252,6 +297,46 @@ html, body {
   box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.12);
 }
 
+/* Suggestion dropdown */
+#suggestDropdown {
+  position: fixed; z-index: 300;
+  background: var(--card-bg);
+  border: 1px solid var(--separator);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  max-height: 300px;
+  overflow-y: auto;
+  display: none;
+  min-width: 200px;
+  scrollbar-width: thin;
+}
+#suggestDropdown.visible { display: block; }
+#suggestDropdown::-webkit-scrollbar { width: 4px; }
+#suggestDropdown::-webkit-scrollbar-thumb { background: var(--text-tertiary); border-radius: 2px; }
+
+.suggest-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-bottom: 1px solid var(--separator);
+}
+.suggest-item:last-child { border-bottom: none; }
+.suggest-item:hover, .suggest-item.active { background: var(--input-bg); }
+.suggest-item .suggest-fn {
+  font-family: var(--mono-stack);
+  font-size: 12px;
+  color: var(--text-primary);
+  flex-shrink: 0;
+  min-width: 70px;
+}
+.suggest-item .suggest-latex {
+  font-size: 14px;
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+.suggest-item .suggest-latex .katex { font-size: 1em; }
+
 /* Layer Top Row */
 .layer-top {
   display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
@@ -314,7 +399,7 @@ html, body {
   max-height: 0; overflow: hidden;
   transition: max-height 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
-.analysis-body.open { max-height: 800px; }
+.analysis-body.open { max-height: 2000px; }
 
 .analysis-grid {
   padding: 8px 0 2px;
@@ -519,6 +604,13 @@ html, body {
 /* ═══════════════════════════════════════════════════════════
    GRID TOGGLE (BOTTOM CENTER)
    ═══════════════════════════════════════════════════════════ */
+#axisToggle {
+  position: fixed;
+  bottom: 60px; left: 50%; transform: translateX(-50%);
+  z-index: 100;
+  display: flex; gap: 2px; padding: 3px;
+  animation: slideIn 0.5s var(--transition-bounce) 0.15s both;
+}
 #gridToggle {
   position: fixed;
   bottom: 16px; left: 50%; transform: translateX(-50%);
@@ -670,6 +762,10 @@ html, body {
 <!-- ═══════════ CANVAS ═══════════ -->
 <canvas id="plotCanvas"></canvas>
 
+<div id="panelToggleHint" onclick="togglePanel()">
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M7 2L3 6l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</div>
+
 <!-- ═══════════ CONTROL PANEL ═══════════ -->
 <div id="controlPanel" class="glass">
   <div class="panel-header">
@@ -680,6 +776,9 @@ html, body {
     <div class="header-actions">
       <button class="icon-btn" id="resetViewBtn" title="重置视图 (0)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 1 1 1.06 3.38" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 12V8h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="collapseBtn" title="折叠面板">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
   </div>
@@ -716,6 +815,10 @@ html, body {
 </div>
 
 <!-- ═══════════ GRID TOGGLE ═══════════ -->
+<div id="axisToggle" class="glass" style="bottom:60px;">
+  <button class="grid-btn active" data-axis="scalar" onclick="setAxisMode('scalar')">标量轴</button>
+  <button class="grid-btn" data-axis="radian" onclick="setAxisMode('radian')">弧度轴</button>
+</div>
 <div id="gridToggle" class="glass">
   <button class="grid-btn active" data-grid="cartesian" onclick="setGrid('cartesian')">笛卡尔</button>
   <button class="grid-btn" data-grid="polar" onclick="setGrid('polar')">极坐标</button>
@@ -731,6 +834,9 @@ html, body {
 <div id="coordDisplay" class="glass">
   <span id="coordText">x: 0.00 &nbsp; y: 0.00</span>
 </div>
+
+<!-- ═══════════ SUGGESTION DROPDOWN ═══════════ -->
+<div id="suggestDropdown"></div>
 
 <!-- ═══════════ TOOLTIP ═══════════ -->
 <div id="tooltip"></div>
@@ -777,6 +883,7 @@ const state = {
 
   // Grid
   gridType: 'cartesian',
+  axisMode: 'scalar', // 'scalar' | 'radian'
 
   // Snap
   snapEnabled: true,
@@ -815,7 +922,9 @@ function compileExpr(expr) {
   const key = expr.trim();
   if (state.compiledCache.has(key)) return state.compiledCache.get(key);
   try {
-    const node = math.parse(key);
+    // Normalize: ln → log (math.js uses log for natural log)
+    const normalized = key.replace(/\bln\(/g, 'log(');
+    const node = math.parse(normalized);
     const compiled = node.compile();
     state.compiledCache.set(key, compiled);
     return compiled;
@@ -827,8 +936,9 @@ function compileExpr(expr) {
 function evalNum(compiled, vars) {
   try {
     const v = compiled.evaluate({ ...evalScope, ...vars });
-    const n = (typeof v === 'number') ? v : parseFloat(v);
-    return n;
+    if (typeof v !== 'number') return NaN;
+    if (!isFinite(v)) return NaN;
+    return v;
   } catch { return NaN; }
 }
 
@@ -1056,6 +1166,16 @@ function attachLayerEvents() {
     });
   });
 
+  // Suggestion dropdown
+  box.querySelectorAll('.eq-input.no-suggest').forEach(input => {
+    // skip inputs marked with no-suggest class
+  });
+  box.querySelectorAll('.eq-input:not(.no-suggest)').forEach(input => {
+    input.addEventListener('keydown', (e) => handleSuggestKeynav(e, input));
+    input.addEventListener('blur', () => setTimeout(() => hideSuggestions(), 150));
+    input.addEventListener('focus', () => showSuggestions(input));
+  });
+
   // Analysis toggle
   box.querySelectorAll('.analysis-toggle').forEach(tog => {
     tog.addEventListener('click', () => {
@@ -1065,7 +1185,11 @@ function attachLayerEvents() {
       tog.classList.toggle('open');
       const body = tog.nextElementSibling;
       if (layer.analysisOpen) {
-        body.innerHTML = renderAnalysisContent(layer);
+        try {
+          body.innerHTML = renderAnalysisContent(layer);
+        } catch (e) {
+          body.innerHTML = '<div style="padding:8px 0;font-size:12px;color:var(--danger);">分析出错，请检查函数表达式</div>';
+        }
         body.classList.add('open');
       } else {
         body.classList.remove('open');
@@ -1079,1250 +1203,160 @@ function esc(s) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   CANVAS SETUP & RESIZE
+   SUGGESTION DROPDOWN
    ═══════════════════════════════════════════════════════════ */
-function resizeCanvas() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  canvas.width = w * state.dpr;
-  canvas.height = h * state.dpr;
-  canvas.style.width = w + 'px';
-  canvas.style.height = h + 'px';
-  ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
-  scheduleRender();
-}
-
-/* ═══════════════════════════════════════════════════════════
-   RENDER LOOP — requestAnimationFrame driven
-   ═══════════════════════════════════════════════════════════ */
-function scheduleRender() { state.needsRender = true; }
-
-function renderLoop() {
-  if (state.needsRender) {
-    state.needsRender = false;
-    render();
-  }
-  requestAnimationFrame(renderLoop);
-}
-
-function render() {
-  const w = canvas.width / state.dpr;
-  const h = canvas.height / state.dpr;
-  const dark = document.body.dataset.theme === 'dark';
-
-  ctx.clearRect(0, 0, w, h);
-
-  // Background
-  ctx.fillStyle = dark ? '#000000' : '#fafafa';
-  ctx.fillRect(0, 0, w, h);
-
-  drawGrid(w, h, dark);
-  drawAxes(w, h, dark);
-
-  // Draw each function layer
-  for (const layer of state.layers) {
-    if (!layer.visible) continue;
-    try {
-      if (layer.type === 'explicit') drawExplicit(layer, w, h);
-      else if (layer.type === 'parametric') drawParametric(layer, w, h);
-      else if (layer.type === 'polar') drawPolar(layer, w, h);
-      layer.error = false;
-    } catch { layer.error = true; }
-  }
-
-  // Draw snap point overlay
-  drawSnapOverlay(w, h);
-}
-
-/* ═══════════════════════════════════════════════════════════
-   GRID RENDERING — Adaptive spacing
-   ═══════════════════════════════════════════════════════════ */
-function niceStep() {
-  // Find a "nice" grid spacing in pixels between 50–150
-  const targets = [1, 2, 5];
-  let mag = 0.01;
-  while (mag < 1e6) {
-    for (const t of targets) {
-      const step = t * mag;
-      if (step * state.scale >= 50 && step * state.scale <= 150) return step;
-    }
-    mag *= 10;
-  }
-  return 1;
-}
-
-function drawGrid(w, h, dark) {
-  if (state.gridType === 'cartesian') drawCartesianGrid(w, h, dark);
-  else drawPolarGrid(w, h, dark);
-}
-
-function drawCartesianGrid(w, h, dark) {
-  const step = niceStep();
-  const subDiv = 5;
-  const minor = step / subDiv;
-
-  const [x0, y1] = s2m(0, 0);
-  const [x1, y0] = s2m(w, h);
-
-  // Minor grid
-  ctx.strokeStyle = dark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.035)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  let s = Math.floor(x0 / minor) * minor;
-  for (let x = s; x <= x1; x += minor) {
-    const [sx] = m2s(x, 0);
-    ctx.moveTo(Math.round(sx) + 0.5, 0);
-    ctx.lineTo(Math.round(sx) + 0.5, h);
-  }
-  s = Math.floor(y0 / minor) * minor;
-  for (let y = s; y <= y1; y += minor) {
-    const [, sy] = m2s(0, y);
-    ctx.moveTo(0, Math.round(sy) + 0.5);
-    ctx.lineTo(w, Math.round(sy) + 0.5);
-  }
-  ctx.stroke();
-
-  // Major grid
-  ctx.strokeStyle = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)';
-  ctx.beginPath();
-  s = Math.floor(x0 / step) * step;
-  for (let x = s; x <= x1; x += step) {
-    const [sx] = m2s(x, 0);
-    ctx.moveTo(Math.round(sx) + 0.5, 0);
-    ctx.lineTo(Math.round(sx) + 0.5, h);
-  }
-  s = Math.floor(y0 / step) * step;
-  for (let y = s; y <= y1; y += step) {
-    const [, sy] = m2s(0, y);
-    ctx.moveTo(0, Math.round(sy) + 0.5);
-    ctx.lineTo(w, Math.round(sy) + 0.5);
-  }
-  ctx.stroke();
-
-  // Labels
-  drawCartesianLabels(w, h, dark, step, x0, x1, y0, y1);
-}
-
-function drawCartesianLabels(w, h, dark, step, x0, x1, y0, y1) {
-  const mono = getComputedStyle(document.documentElement).getPropertyValue('--mono-stack').trim();
-  ctx.fillStyle = dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)';
-  ctx.font = `500 10.5px ${mono}`;
-
-  const [, originSy] = m2s(0, 0);
-  const labelY = clamp(originSy + 14, 14, h - 6);
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  let s = Math.floor(x0 / step) * step;
-  for (let x = s; x <= x1; x += step) {
-    if (Math.abs(x) < step * 0.01) continue;
-    const [sx] = m2s(x, 0);
-    if (sx > 20 && sx < w - 20) ctx.fillText(fmtNum(x), sx, labelY);
-  }
-
-  const [originSx] = m2s(0, 0);
-  const labelX = clamp(originSx - 8, 30, w - 6);
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-  s = Math.floor(y0 / step) * step;
-  for (let y = s; y <= y1; y += step) {
-    if (Math.abs(y) < step * 0.01) continue;
-    const [, sy] = m2s(0, y);
-    if (sy > 14 && sy < h - 14) ctx.fillText(fmtNum(y), labelX, sy);
-  }
-}
-
-function drawPolarGrid(w, h, dark) {
-  const step = niceStep();
-  const [ox, oy] = m2s(0, 0);
-  const maxR = Math.hypot(
-    Math.max(Math.abs(s2m(0,0)[0]), Math.abs(s2m(w,0)[0])),
-    Math.max(Math.abs(s2m(0,0)[1]), Math.abs(s2m(0,h)[1]))
-  ) * 1.2;
-
-  const mono = getComputedStyle(document.documentElement).getPropertyValue('--mono-stack').trim();
-
-  // Concentric circles
-  for (let r = step; r <= maxR; r += step) {
-    const rpx = r * state.scale;
-    ctx.strokeStyle = dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(ox, oy, rpx, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Label
-    ctx.fillStyle = dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)';
-    ctx.font = `500 10px ${mono}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(fmtNum(r), ox + rpx + 4, oy - 4);
-  }
-
-  // Radial lines
-  ctx.strokeStyle = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
-  ctx.beginPath();
-  for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
-    ctx.moveTo(ox, oy);
-    ctx.lineTo(ox + Math.cos(a) * maxR * state.scale, oy - Math.sin(a) * maxR * state.scale);
-  }
-  ctx.stroke();
-
-  // Angle labels
-  ctx.fillStyle = dark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)';
-  ctx.font = `500 9px ${mono}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const labelR = Math.min(30, maxR * state.scale * 0.15);
-  for (let deg = 0; deg < 360; deg += 30) {
-    const a = deg * Math.PI / 180;
-    ctx.fillText(deg + '°', ox + Math.cos(a) * labelR, oy - Math.sin(a) * labelR);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   AXES RENDERING
-   ═══════════════════════════════════════════════════════════ */
-function drawAxes(w, h, dark) {
-  const [ox, oy] = m2s(0, 0);
-
-  ctx.strokeStyle = dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.22)';
-  ctx.lineWidth = 1.2;
-
-  // X axis
-  ctx.beginPath();
-  ctx.moveTo(0, Math.round(oy) + 0.5);
-  ctx.lineTo(w, Math.round(oy) + 0.5);
-  ctx.stroke();
-
-  // Y axis
-  ctx.beginPath();
-  ctx.moveTo(Math.round(ox) + 0.5, 0);
-  ctx.lineTo(Math.round(ox) + 0.5, h);
-  ctx.stroke();
-
-  // Origin dot
-  if (ox > 0 && ox < w && oy > 0 && oy < h) {
-    ctx.fillStyle = dark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.arc(ox, oy, 2.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   FUNCTION DRAWING — Explicit, Parametric, Polar
-   ═══════════════════════════════════════════════════════════ */
-function getDomain(layer) {
-  let lo = -Infinity, hi = Infinity;
-  if (layer.domainMin !== '' && isFinite(parseFloat(layer.domainMin))) lo = parseFloat(layer.domainMin);
-  if (layer.domainMax !== '' && isFinite(parseFloat(layer.domainMax))) hi = parseFloat(layer.domainMax);
-  return [lo, hi];
-}
-
-function drawExplicit(layer, w, h) {
-  const compiled = compileExpr(layer.expr);
-  if (!compiled) { layer.error = true; return; }
-
-  const [dLo, dHi] = getDomain(layer);
-  const [sx0] = s2m(0, 0);
-  const [sx1] = s2m(w, 0);
-  const xLo = Math.max(dLo, sx0 - 2);
-  const xHi = Math.min(dHi, sx1 + 2);
-  if (xLo >= xHi) return;
-
-  const N = Math.min(Math.round(w * 1.5), 3000);
-  const dx = (xHi - xLo) / N;
-
-  ctx.strokeStyle = layer.color;
-  ctx.lineWidth = 2.5;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-
-  let pen = false;
-  let prevSy = 0;
-
-  ctx.beginPath();
-  for (let i = 0; i <= N; i++) {
-    const x = xLo + i * dx;
-    const y = evalNum(compiled, { x });
-
-    if (!isFinite(y) || Math.abs(y) > 1e8) {
-      pen = false;
-      continue;
-    }
-
-    const [sx, sy] = m2s(x, y);
-
-    // Discontinuity detection: huge jump in screen y
-    if (pen && Math.abs(sy - prevSy) > h * 0.6) {
-      ctx.moveTo(sx, sy);
-    } else if (!pen) {
-      ctx.moveTo(sx, sy);
-    } else {
-      ctx.lineTo(sx, sy);
-    }
-    pen = true;
-    prevSy = sy;
-  }
-  ctx.stroke();
-}
-
-function drawParametric(layer, w, h) {
-  const cX = compileExpr(layer.paramX);
-  const cY = compileExpr(layer.paramY);
-  if (!cX || !cY) { layer.error = true; return; }
-
-  const [tLo0, tHi0] = getDomain(layer);
-  const tLo = isFinite(tLo0) ? tLo0 : 0;
-  const tHi = isFinite(tHi0) ? tHi0 : Math.PI * 2;
-
-  const N = 3000;
-  const dt = (tHi - tLo) / N;
-
-  ctx.strokeStyle = layer.color;
-  ctx.lineWidth = 2.5;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-
-  let pen = false;
-  ctx.beginPath();
-  for (let i = 0; i <= N; i++) {
-    const t = tLo + i * dt;
-    const x = evalNum(cX, { t });
-    const y = evalNum(cY, { t });
-    if (!isFinite(x) || !isFinite(y)) { pen = false; continue; }
-
-    const [sx, sy] = m2s(x, y);
-    if (!pen) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
-    pen = true;
-  }
-  ctx.stroke();
-}
-
-function drawPolar(layer, w, h) {
-  const compiled = compileExpr(layer.polarR);
-  if (!compiled) { layer.error = true; return; }
-
-  const [tLo0, tHi0] = getDomain(layer);
-  const tLo = isFinite(tLo0) ? tLo0 : 0;
-  const tHi = isFinite(tHi0) ? tHi0 : Math.PI * 2;
-
-  const N = 3000;
-  const dt = (tHi - tLo) / N;
-
-  ctx.strokeStyle = layer.color;
-  ctx.lineWidth = 2.5;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-
-  let pen = false;
-  ctx.beginPath();
-  for (let i = 0; i <= N; i++) {
-    const theta = tLo + i * dt;
-    const r = evalNum(compiled, { theta });
-    if (!isFinite(r)) { pen = false; continue; }
-
-    const x = r * Math.cos(theta);
-    const y = r * Math.sin(theta);
-    const [sx, sy] = m2s(x, y);
-    if (!pen) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
-    pen = true;
-  }
-  ctx.stroke();
-}
-
-/* ═══════════════════════════════════════════════════════════
-   SNAP TO CURVE & SPECIAL POINT DETECTION
-   ═══════════════════════════════════════════════════════════ */
-function findSnap(sx, sy) {
-  if (!state.snapEnabled) return null;
-  const [mx, my] = s2m(sx, sy);
-  const SNAP_PX = 18;
-  let best = null;
-  let bestDist = SNAP_PX;
-
-  for (const layer of state.layers) {
-    if (!layer.visible) continue;
-
-    if (layer.type === 'explicit') {
-      const compiled = compileExpr(layer.expr);
-      if (!compiled) continue;
-
-      const y = evalNum(compiled, { x: mx });
-      if (!isFinite(y)) continue;
-
-      const [psx, psy] = m2s(mx, y);
-      const dist = Math.abs(psy - sy);
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = { sx: psx, sy: psy, mx, my: y, color: layer.color, layer, tag: null };
-      }
-    } else if (layer.type === 'polar') {
-      const compiled = compileExpr(layer.polarR);
-      if (!compiled) continue;
-
-      const [dLo0, dHi0] = getDomain(layer);
-      const tLo = isFinite(dLo0) ? dLo0 : 0;
-      const tHi = isFinite(dHi0) ? dHi0 : Math.PI * 2;
-
-      const S = 400;
-      const dt = (tHi - tLo) / S;
-      for (let i = 0; i <= S; i++) {
-        const theta = tLo + i * dt;
-        const r = evalNum(compiled, { theta });
-        if (!isFinite(r)) continue;
-        const px = r * Math.cos(theta);
-        const py = r * Math.sin(theta);
-        const [psx, psy] = m2s(px, py);
-        const dist = Math.hypot(psx - sx, psy - sy);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = { sx: psx, sy: psy, mx: px, my: py, color: layer.color, layer, tag: null };
-        }
-      }
-    } else if (layer.type === 'parametric') {
-      const cX = compileExpr(layer.paramX);
-      const cY = compileExpr(layer.paramY);
-      if (!cX || !cY) continue;
-
-      const [tLo0, tHi0] = getDomain(layer);
-      const tLo = isFinite(tLo0) ? tLo0 : 0;
-      const tHi = isFinite(tHi0) ? tHi0 : Math.PI * 2;
-
-      const S = 400;
-      const dt = (tHi - tLo) / S;
-      for (let i = 0; i <= S; i++) {
-        const t = tLo + i * dt;
-        const px = evalNum(cX, { t });
-        const py = evalNum(cY, { t });
-        if (!isFinite(px) || !isFinite(py)) continue;
-        const [psx, psy] = m2s(px, py);
-        const dist = Math.hypot(psx - sx, psy - sy);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = { sx: psx, sy: psy, mx: px, my: py, color: layer.color, layer, tag: null };
-        }
-      }
-    }
-  }
-
-  // Check for special points on the best-matching layer
-  if (best && best.layer.type === 'explicit') {
-    const specials = findSpecialPoints(best.layer);
-    for (const sp of specials) {
-      if (Math.hypot(sp.sx - best.sx, sp.sy - best.sy) < 12) {
-        best.tag = sp.tag;
-        break;
-      }
-    }
-  }
-
-  return best;
-}
-
-function findSpecialPoints(layer) {
-  const points = [];
-  if (layer.type !== 'explicit') return points;
-  const compiled = compileExpr(layer.expr);
-  if (!compiled) return points;
-
-  const [dLo, dHi] = getDomain(layer);
-  const [sx0] = s2m(0, 0);
-  const [sx1] = s2m(canvas.width / state.dpr, 0);
-  const xLo = Math.max(dLo, sx0 - 2);
-  const xHi = Math.min(dHi, sx1 + 2);
-  if (xLo >= xHi) return points;
-
-  const N = 600;
-  const dx = (xHi - xLo) / N;
-
-  let prevX = xLo;
-  let prevY = evalNum(compiled, { x: xLo });
-
-  for (let i = 1; i <= N; i++) {
-    const x = xLo + i * dx;
-    const y = evalNum(compiled, { x });
-    if (!isFinite(y) || !isFinite(prevY)) { prevX = x; prevY = y; continue; }
-
-    // Root detection (sign change)
-    if (prevY * y < 0) {
-      let lo = prevX, hi = x;
-      for (let j = 0; j < 30; j++) {
-        const mid = (lo + hi) * 0.5;
-        if (evalNum(compiled, { x: mid }) * evalNum(compiled, { x: lo }) <= 0) hi = mid; else lo = mid;
-      }
-      const rx = (lo + hi) * 0.5;
-      const [psx, psy] = m2s(rx, 0);
-      points.push({ sx: psx, sy: psy, mx: rx, my: 0, tag: '零点', color: layer.color });
-    }
-
-    // Y-intercept
-    if (prevX <= 0 && x > 0) {
-      const y0 = evalNum(compiled, { x: 0 });
-      if (isFinite(y0)) {
-        const [psx, psy] = m2s(0, y0);
-        points.push({ sx: psx, sy: psy, mx: 0, my: y0, tag: 'Y截距', color: layer.color });
-      }
-    }
-
-    // Extrema via sign change in finite difference
-    if (i >= 2) {
-      const ppx = xLo + (i - 2) * dx;
-      const ppy = evalNum(compiled, { x: ppx });
-      if (isFinite(ppy)) {
-        const d1 = prevY - ppy;
-        const d2 = y - prevY;
-        if (d1 * d2 < 0 && Math.abs(d1) > 1e-12) {
-          // Refine: ternary search
-          let lo = ppx, hi = x;
-          for (let j = 0; j < 30; j++) {
-            const m1 = lo + (hi - lo) / 3;
-            const m2 = hi - (hi - lo) / 3;
-            if (Math.abs(evalNum(compiled, { x: m1 })) < Math.abs(evalNum(compiled, { x: m2 }))) hi = m2; else lo = m1;
-          }
-          // Actually for extrema, use golden section to find max/min value
-          let glo = ppx, ghi = x;
-          const phi = (Math.sqrt(5) - 1) / 2;
-          for (let j = 0; j < 30; j++) {
-            const c = ghi - phi * (ghi - glo);
-            const d = glo + phi * (ghi - glo);
-            const fc = evalNum(compiled, { x: c });
-            const fd = evalNum(compiled, { x: d });
-            if ((d1 > 0) ? fc < fd : fc > fd) ghi = d; else glo = c;
-          }
-          const ex = (glo + ghi) * 0.5;
-          const ey = evalNum(compiled, { x: ex });
-          if (isFinite(ey)) {
-            const [psx, psy] = m2s(ex, ey);
-            points.push({ sx: psx, sy: psy, mx: ex, my: ey, tag: d1 > 0 ? '极大值' : '极小值', color: layer.color });
-          }
-        }
-      }
-    }
-
-    prevX = x;
-    prevY = y;
-  }
-
-  return points;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   FUNCTION ANALYSIS — compute all properties for explicit f(x)
-   ═══════════════════════════════════════════════════════════ */
-function computeAnalysis(layer) {
-  if (layer.type !== 'explicit' || !layer.expr.trim()) return null;
-  const compiled = compileExpr(layer.expr);
-  if (!compiled) return null;
-
-  const [dLo, dHi] = getDomain(layer);
-  const scanLo = isFinite(dLo) ? dLo : -200;
-  const scanHi = isFinite(dHi) ? dHi : 200;
-  const N = 2000;
-  const dx = (scanHi - scanLo) / N;
-
-  // Safe evaluation helper
-  const f = (x) => {
-    try { const v = compiled.evaluate({ ...evalScope, x }); return (typeof v === 'number') ? v : parseFloat(v); }
-    catch { return NaN; }
-  };
-
-  // ── 1. X-intercepts (roots) ──
-  const roots = [];
-  let prevX = scanLo, prevY = f(scanLo);
-  for (let i = 1; i <= N; i++) {
-    const x = scanLo + i * dx;
-    const y = f(x);
-    if (isFinite(y) && isFinite(prevY) && prevY * y < 0) {
-      let lo = prevX, hi = x;
-      for (let j = 0; j < 40; j++) {
-        const mid = (lo + hi) * 0.5;
-        if (f(mid) * f(lo) <= 0) hi = mid; else lo = mid;
-      }
-      roots.push(((lo + hi) * 0.5));
-    }
-    if (isFinite(y)) { prevX = x; prevY = y; }
-  }
-
-  // ── 2. Y-intercept ──
-  const y0 = f(0);
-  const hasYInt = isFinite(y0);
-
-  // ── 3. Extrema (min/max) ──
-  const mins = [], maxs = [];
-  prevX = scanLo; prevY = f(scanLo);
-  let prevPrevY = NaN, prevPrevX = NaN;
-  for (let i = 1; i <= N; i++) {
-    const x = scanLo + i * dx;
-    const y = f(x);
-    if (isFinite(y) && isFinite(prevY) && isFinite(prevPrevY)) {
-      const d1 = prevY - prevPrevY;
-      const d2 = y - prevY;
-      if (d1 * d2 < 0 && Math.abs(d1) > 1e-14) {
-        let glo = prevPrevX, ghi = x;
-        const phi = (Math.sqrt(5) - 1) / 2;
-        for (let j = 0; j < 40; j++) {
-          const c = ghi - phi * (ghi - glo);
-          const d = glo + phi * (ghi - glo);
-          const isMax = d1 > 0;
-          if (isMax ? f(c) < f(d) : f(c) > f(d)) ghi = d; else glo = c;
-        }
-        const ex = (glo + ghi) * 0.5;
-        const ey = f(ex);
-        if (isFinite(ey)) {
-          (d1 > 0 ? maxs : mins).push({ x: ex, y: ey });
-        }
-      }
-    }
-    prevPrevY = prevY; prevPrevX = prevX;
-    prevX = x; prevY = y;
-  }
-
-  // ── 4. Inflection points (sign change in 2nd derivative) ──
-  const inflections = [];
-  prevX = scanLo; prevY = f(scanLo);
-  prevPrevY = NaN; prevPrevX = NaN;
-  for (let i = 1; i <= N; i++) {
-    const x = scanLo + i * dx;
-    const y = f(x);
-    if (isFinite(y) && isFinite(prevY) && isFinite(prevPrevY)) {
-      const d2a = (f(prevPrevX - dx) - 2 * prevPrevY + prevY) || 0;
-      const d2b = (prevPrevY - 2 * prevY + y) || 0;
-      // Use a wider stencil for better 2nd derivative
-      const x0 = prevPrevX, x1 = prevX, x2 = x;
-      const y0_ = prevPrevY, y1_ = prevY, y2_ = y;
-      const dd = (y2_ - 2 * y1_ + y0_) / (dx * dx);
-      const ddPrev = i >= 2 ? ((prevY - 2 * prevPrevY + f(prevPrevX - dx)) / (dx * dx)) : dd;
-      if (isFinite(dd) && isFinite(ddPrev) && dd * ddPrev < 0 && Math.abs(ddPrev) > 1e-16) {
-        // Binary search for inflection
-        let lo = prevPrevX, hi = x;
-        for (let j = 0; j < 40; j++) {
-          const mid = (lo + hi) * 0.5;
-          const ya = f(mid - dx), yb = f(mid), yc = f(mid + dx);
-          const dMid = isFinite(ya) && isFinite(yc) ? (ya - 2 * yb + yc) : 0;
-          if (dMid * (f(lo - dx) - 2 * f(lo) + f(lo + dx)) <= 0) hi = mid; else lo = mid;
-        }
-        const ix = (lo + hi) * 0.5;
-        const iy = f(ix);
-        if (isFinite(iy)) inflections.push({ x: ix, y: iy });
-      }
-    }
-    prevPrevY = prevY; prevPrevX = prevX;
-    prevX = x; prevY = y;
-  }
-
-  // ── 5. Vertical asymptotes (discontinuities) ──
-  const vAsymptotes = [];
-  prevX = scanLo; prevY = f(scanLo);
-  for (let i = 1; i <= N; i++) {
-    const x = scanLo + i * dx;
-    const y = f(x);
-    const leftOK = isFinite(prevY) && Math.abs(prevY) < 1e8;
-    const rightOK = isFinite(y) && Math.abs(y) < 1e8;
-    if (leftOK && rightOK && Math.abs(y - prevY) > 500) {
-      // Discontinuity: narrow it down
-      let lo = prevX, hi = x;
-      for (let j = 0; j < 20; j++) {
-        const mid = (lo + hi) * 0.5;
-        const fl = f((lo + mid) * 0.5), fr = f((mid + hi) * 0.5);
-        if (isFinite(fl) && Math.abs(fl) < 1e8 && isFinite(fr) && Math.abs(fr) < 1e8 && Math.abs(fr - fl) > 500) {
-          if (Math.abs(f(mid + dx) - f(mid - dx)) > Math.abs(f(mid))) hi = mid; else lo = mid;
-        } else { hi = mid; }
-      }
-      vAsymptotes.push(((lo + hi) * 0.5));
-    }
-    if (isFinite(y)) { prevX = x; prevY = y; }
-  }
-
-  // Also check for undefined points (NaN) that are surrounded by finite values
-  prevX = scanLo; prevY = f(scanLo);
-  for (let i = 1; i <= N; i++) {
-    const x = scanLo + i * dx;
-    const y = f(x);
-    if (isFinite(prevY) && !isFinite(y) && !isNaN(y) === false) {
-      // NaN transition
-    }
-    if (!isFinite(prevY) && !isNaN(prevY) && isFinite(y)) {
-      // Coming back from undefined — check if it's near an existing asymptote
-    }
-    prevX = x; prevY = y;
-  }
-
-  // ── 6. Horizontal asymptotes ──
-  let hAsymNeg = null, hAsymPos = null;
-  const checkH = (xVal) => { const v = f(xVal); return isFinite(v) && Math.abs(v) < 1e8 ? v : null; };
-  const y10 = checkH(-100), y20 = checkH(-50);
-  const y30 = checkH(100), y40 = checkH(50);
-  if (y10 !== null && y20 !== null && Math.abs(y10 - y20) < 0.01) hAsymNeg = y10;
-  if (y30 !== null && y40 !== null && Math.abs(y30 - y40) < 0.01) hAsymPos = y30;
-
-  // ── 7. Oblique asymptote y = kx + b ──
-  let oblique = null;
-  const tryOblique = (x1v, x2v) => {
-    const y1v = f(x1v), y2v = f(x2v);
-    if (!isFinite(y1v) || !isFinite(y2v)) return null;
-    const k = (y2v - y1v) / (x2v - x1v);
-    const b = y1v - k * x1v;
-    // Verify: f(x) - (kx+b) should be small for large x
-    const test1 = f(x1v * 1.5), test2 = f(x2v * 1.5);
-    if (!isFinite(test1) || !isFinite(test2)) return null;
-    const err1 = Math.abs(test1 - (k * x1v * 1.5 + b));
-    const err2 = Math.abs(test2 - (k * x2v * 1.5 + b));
-    if (err1 < 0.1 && err2 < 0.1 && Math.abs(k) > 0.001) return { k, b };
-    return null;
-  };
-  const oblNeg = tryOblique(-200, -100);
-  const oblPos = tryOblique(100, 200);
-  if (oblNeg && oblPos && Math.abs(oblNeg.k - oblPos.k) < 0.01 && Math.abs(oblNeg.b - oblPos.b) < 0.1) {
-    oblique = oblNeg;
-  } else if (oblNeg) {
-    oblique = oblNeg;
-  } else if (oblPos) {
-    oblique = oblPos;
-  }
-
-  // ── 8. Odd/Even parity ──
-  let parity = 'unknown';
-  const testPoints = [0.5, 1, 1.5, 2, 3, 5, 7, 10];
-  let isEven = true, isOdd = true;
-  for (const t of testPoints) {
-    const fp = f(t), fn = f(-t);
-    if (!isFinite(fp) || !isFinite(fn)) continue;
-    if (Math.abs(fp - fn) > 1e-6) isEven = false;
-    if (Math.abs(fp + fn) > 1e-6) isOdd = false;
-  }
-  if (isEven) parity = 'even';
-  else if (isOdd) parity = 'odd';
-
-  // ── 9. Monotonicity ──
-  const intervals = [];
-  const segSize = (scanHi - scanLo) / 20;
-  let segStart = scanLo, segDir = 0;
-  for (let i = 0; i <= 20; i++) {
-    const x = scanLo + i * segSize;
-    const xp = x + 0.0001;
-    const deriv = (f(xp) - f(x)) / 0.0001;
-    const dir = deriv > 0.001 ? 1 : deriv < -0.001 ? -1 : 0;
-    if (i === 0) { segDir = dir; continue; }
-    if (dir !== segDir && dir !== 0 && segDir !== 0) {
-      intervals.push({ lo: segStart, hi: x, dir: segDir });
-      segStart = x;
-      segDir = dir;
-    } else if (dir !== 0) {
-      segDir = dir;
-    }
-  }
-  intervals.push({ lo: segStart, hi: scanHi, dir: segDir });
-
-  // ── 10. Range (approximate) ──
-  let rangeMin = Infinity, rangeMax = -Infinity;
-  for (let i = 0; i <= N; i++) {
-    const x = scanLo + i * dx;
-    const y = f(x);
-    if (isFinite(y) && Math.abs(y) < 1e6) { rangeMin = Math.min(rangeMin, y); rangeMax = Math.max(rangeMax, y); }
-  }
-
-  return { roots, y0: hasYInt ? y0 : null, mins, maxs, inflections, vAsymptotes, hAsymNeg, hAsymPos, oblique, parity, intervals, rangeMin: isFinite(rangeMin) ? rangeMin : null, rangeMax: isFinite(rangeMax) ? rangeMax : null };
-}
-
-function renderAnalysisContent(layer) {
-  const a = computeAnalysis(layer);
-  if (!a) return '<div style="padding:8px 0;font-size:12px;color:var(--text-tertiary);">请输入有效的函数表达式</div>';
-
-  const fm = (n) => fmtNum(n);
-  const fp = (n) => { const s = fm(n); return n >= 0 ? s : s; };
-
-  let html = '<div class="analysis-grid">';
-
-  // Domain
-  html += `<div class="analysis-item"><span class="analysis-label">定义域</span><span class="analysis-value">x ∈ ℝ${layer.domainMin || layer.domainMax ? `, ${layer.domainMin || '-∞'} < x < ${layer.domainMax || '+∞'}` : ''}</span></div>`;
-
-  // Range
-  if (a.rangeMin !== null && a.rangeMax !== null) {
-    const rStr = Math.abs(a.rangeMax - a.rangeMin) > 1e4
-      ? `y ∈ (${fm(a.rangeMin)}, ${fm(a.rangeMax)})`
-      : `y ∈ [${fm(a.rangeMin)}, ${fm(a.rangeMax)}]`;
-    html += `<div class="analysis-item"><span class="analysis-label">值域</span><span class="analysis-value">${rStr}</span></div>`;
-  }
-
-  // X-intercepts
-  html += `<div class="analysis-item"><span class="analysis-label">X轴截距</span><span class="analysis-value">${
-    a.roots.length > 0
-      ? a.roots.map(r => `(${fm(r)}, 0)`).join('  ')
-      : '此函数没有X轴截距'
-  }</span></div>`;
-
-  // Y-intercept
-  html += `<div class="analysis-item"><span class="analysis-label">Y轴截距</span><span class="analysis-value">${
-    a.y0 !== null ? `(0, ${fm(a.y0)})` : '此函数没有Y轴截距'
-  }</span></div>`;
-
-  // Minima
-  html += `<div class="analysis-item"><span class="analysis-label">极小值</span><span class="analysis-value">${
-    a.mins.length > 0
-      ? a.mins.map(m => `(${fm(m.x)}, ${fm(m.y)})`).join('  ')
-      : '此函数没有任何极小值点'
-  }</span></div>`;
-
-  // Maxima
-  html += `<div class="analysis-item"><span class="analysis-label">极大值</span><span class="analysis-value">${
-    a.maxs.length > 0
-      ? a.maxs.map(m => `(${fm(m.x)}, ${fm(m.y)})`).join('  ')
-      : '此函数没有任何极大值点'
-  }</span></div>`;
-
-  // Inflection points
-  html += `<div class="analysis-item"><span class="analysis-label">拐点</span><span class="analysis-value">${
-    a.inflections.length > 0
-      ? a.inflections.map(p => `(${fm(p.x)}, ${fm(p.y)})`).join('  ')
-      : '此函数没有任何拐点'
-  }</span></div>`;
-
-  // Vertical asymptotes
-  html += `<div class="analysis-item"><span class="analysis-label">垂直渐近线</span><span class="analysis-value">${
-    a.vAsymptotes.length > 0
-      ? a.vAsymptotes.map(v => `x = ${fm(v)}`).join('  ')
-      : '此函数没有任何垂直渐近线'
-  }</span></div>`;
-
-  // Horizontal asymptotes
-  const hLines = [];
-  if (a.hAsymNeg !== null) hLines.push(`y = ${fm(a.hAsymNeg)}`);
-  if (a.hAsymPos !== null && (hLines.length === 0 || Math.abs(a.hAsymNeg - a.hAsymPos) > 0.01)) hLines.push(`y = ${fm(a.hAsymPos)}`);
-  html += `<div class="analysis-item"><span class="analysis-label">水平渐近线</span><span class="analysis-value">${
-    hLines.length > 0 ? hLines.join('  ') : '此函数没有任何水平渐近线'
-  }</span></div>`;
-
-  // Oblique asymptote
-  html += `<div class="analysis-item"><span class="analysis-label">斜渐近线</span><span class="analysis-value">${
-    a.oblique
-      ? `y = ${fm(a.oblique.k)}x${a.oblique.b >= 0 ? ' + ' : ' - '}${fm(Math.abs(a.oblique.b))}`
-      : '此函数没有任何斜渐近线'
-  }</span></div>`;
-
-  // Odd/Even
-  html += `<div class="analysis-item"><span class="analysis-label">奇偶性</span><span class="analysis-value">${
-    a.parity === 'odd' ? '奇函数' : a.parity === 'even' ? '偶函数' : '非奇非偶函数'
-  }</span></div>`;
-
-  // Monotonicity
-  const monoStr = a.intervals.length > 0
-    ? a.intervals.map(iv => {
-        const lo = iv.lo <= -199 ? '-∞' : fm(iv.lo);
-        const hi = iv.hi >= 199 ? '+∞' : fm(iv.hi);
-        const arrow = iv.dir > 0 ? '↑' : iv.dir < 0 ? '↓' : '→';
-        return `(${lo}, ${hi}) ${arrow}`;
-      }).join('  ')
-    : '无法确定';
-  html += `<div class="analysis-item"><span class="analysis-label">单调性</span><span class="analysis-value">${monoStr}</span></div>`;
-
-  html += '</div>';
-  return html;
-}
-
-/* ─── SNAP OVERLAY ─── */
-function drawSnapOverlay(w, h) {
-  const snap = state.snapResult;
-  if (!snap) return;
-
-  const { sx, sy, color, tag } = snap;
-
-  // Glow
-  const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, 14);
-  grad.addColorStop(0, color + '50');
-  grad.addColorStop(1, color + '00');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(sx, sy, 14, 0, Math.PI * 2);
-  ctx.fill();
-
-  // White ring + colored center
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.arc(sx, sy, 5.5, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Tag label for special points
-  if (tag) {
-    const mono = getComputedStyle(document.documentElement).getPropertyValue('--mono-stack').trim();
-    ctx.font = `bold 9.5px ${mono}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-
-    // Background pill
-    const tw = ctx.measureText(tag).width + 10;
-    const px = sx - tw / 2;
-    const py = sy - 16;
-    ctx.fillStyle = color;
-    roundRect(ctx, px, py, tw, 15, 4);
-    ctx.fill();
-
-    ctx.fillStyle = '#fff';
-    ctx.fillText(tag, sx, sy - 5);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   EVENT HANDLERS — Pan, Zoom, Touch
-   ═══════════════════════════════════════════════════════════ */
-
-// ─── POINTER (mouse + touch unified) ───
-canvas.addEventListener('pointerdown', e => {
-  if (e.button !== 0 && e.pointerType === 'mouse') return;
-  state.isPanning = true;
-  state.panStart = { x: e.clientX, y: e.clientY };
-  state.panOrigin = { cx: state.cx, cy: state.cy };
-  canvas.classList.add('grabbing');
-  canvas.setPointerCapture(e.pointerId);
-});
-
-canvas.addEventListener('pointermove', e => {
-  state.mouse.x = e.clientX;
-  state.mouse.y = e.clientY;
-
-  if (state.isPanning) {
-    const dx = e.clientX - state.panStart.x;
-    const dy = e.clientY - state.panStart.y;
-    state.cx = state.panOrigin.cx - dx / state.scale;
-    state.cy = state.panOrigin.cy + dy / state.scale;
-    scheduleRender();
-  } else {
-    updateCoordDisplay();
-    updateSnap();
-  }
-});
-
-canvas.addEventListener('pointerup', () => {
-  state.isPanning = false;
-  canvas.classList.remove('grabbing');
-});
-
-canvas.addEventListener('pointercancel', () => {
-  state.isPanning = false;
-  canvas.classList.remove('grabbing');
-});
-
-// ─── WHEEL ZOOM (smooth, centered on cursor) ───
-canvas.addEventListener('wheel', e => {
-  e.preventDefault();
-  const factor = Math.pow(1.001, -e.deltaY);
-  zoomAt(e.clientX, e.clientY, factor);
-}, { passive: false });
-
-function zoomAt(sx, sy, factor) {
-  const [mx, my] = s2m(sx, sy);
-  state.scale = clamp(state.scale * factor, 0.5, 1e6);
-  const w = canvas.width / state.dpr;
-  const h = canvas.height / state.dpr;
-  state.cx = mx - (sx - w * 0.5) / state.scale;
-  state.cy = my + (sy - h * 0.5) / state.scale;
-  scheduleRender();
-}
-
-function zoomBy(factor) {
-  const w = canvas.width / state.dpr;
-  const h = canvas.height / state.dpr;
-  zoomAt(w * 0.5, h * 0.5, factor);
-}
-
-// ─── THEME ───
-function toggleTheme() {
-  const body = document.body;
-  body.dataset.theme = body.dataset.theme === 'dark' ? 'light' : 'dark';
-  scheduleRender();
-}
-
-// ─── SNAP ───
-function toggleSnap() {
-  state.snapEnabled = !state.snapEnabled;
-  document.getElementById('snapBtn').classList.toggle('active', state.snapEnabled);
-  if (!state.snapEnabled) { state.snapResult = null; hideTooltip(); scheduleRender(); }
-}
-
-// ─── GRID ───
-function setGrid(type) {
-  state.gridType = type;
-  document.querySelectorAll('.grid-btn').forEach(b => b.classList.toggle('active', b.dataset.grid === type));
-  scheduleRender();
-}
-
-// ─── RESET VIEW ───
-document.getElementById('resetViewBtn').addEventListener('click', resetView);
-function resetView() {
-  state.cx = 0; state.cy = 0; state.scale = 50;
-  scheduleRender();
-}
-
-// ─── COORD DISPLAY ───
-function updateCoordDisplay() {
-  const [mx, my] = s2m(state.mouse.x, state.mouse.y);
-  document.getElementById('coordText').textContent = `x: ${fmtNum(mx)}   y: ${fmtNum(my)}`;
-}
-
-// ─── SNAP UPDATE ───
-function updateSnap() {
-  if (!state.snapEnabled || state.isPanning) return;
-  const snap = findSnap(state.mouse.x, state.mouse.y);
-  state.snapResult = snap;
-
-  if (snap) {
-    showTooltip(snap.sx, snap.sy, snap.mx, snap.my, snap.color, snap.layer, snap.tag);
-  } else {
-    hideTooltip();
-  }
-  scheduleRender();
-}
-
-function showTooltip(sx, sy, mx, my, color, layer, tag) {
-  const tt = document.getElementById('tooltip');
-  const fnStr = layer.type === 'explicit' ? `y = ${layer.expr}` :
-                layer.type === 'polar' ? `r = ${layer.polarR}` :
-                `(${layer.paramX}, ${layer.paramY})`;
-
-  let html = `<div class="tt-label"><span class="tt-dot" style="background:${color}"></span>${esc(fnStr)}</div>`;
-  html += `<div class="tt-coord">(${fmtNum(mx)}, ${fmtNum(my)})</div>`;
-  if (tag) html += `<div><span class="tt-tag" style="background:${color}">${tag}</span></div>`;
-
-  tt.innerHTML = html;
-
-  const pad = 18;
-  let tx = sx + pad;
-  let ty = sy - pad - 40;
-  if (tx + 220 > window.innerWidth) tx = sx - 220 - pad;
-  if (ty < 8) ty = sy + pad;
-  if (ty + 80 > window.innerHeight) ty = window.innerHeight - 88;
-
-  tt.style.left = tx + 'px';
-  tt.style.top = ty + 'px';
-  tt.classList.add('visible');
-}
-
-function hideTooltip() {
-  document.getElementById('tooltip').classList.remove('visible');
-}
-
-/* ─── DYNAMIC VARIABLES (MULTI) ─── */
-const NEXT_LETTERS = 'abcdefghijklmnopqrstuvwxyz';
-
-function getNextVarName() {
-  const used = new Set(state.variables.map(v => v.name));
-  for (const c of NEXT_LETTERS) if (!used.has(c)) return c;
-  return 'v' + state.variables.length;
-}
-
-function addVariable() {
-  const name = getNextVarName();
-  state.variables.push({ name, value: 1, min: -10, max: 10, playing: false, dir: 1 });
-  syncScope();
-  invalidateCache();
-  renderVarList();
-  scheduleRender();
-}
-
-function removeVariable(name) {
-  if (state.variables.length <= 1) return;
-  state.variables = state.variables.filter(v => v.name !== name);
-  syncScope();
-  invalidateCache();
-  renderVarList();
-  scheduleRender();
-}
-
-function toggleVarPlay(name) {
-  const v = state.variables.find(v => v.name === name);
-  if (!v) return;
-  v.playing = !v.playing;
-  renderVarList();
-  if (v.playing) animateVars();
-}
-
-function resetVariable(name) {
-  const v = state.variables.find(v => v.name === name);
-  if (!v) return;
-  v.value = 1; v.dir = 1;
-  syncScope();
-  renderVarList();
-  scheduleRender();
-}
-
-function animateVars() {
-  let anyPlaying = false;
-  for (const v of state.variables) {
-    if (!v.playing) continue;
-    anyPlaying = true;
-    v.value += 0.03 * v.dir;
-    if (v.value >= v.max) { v.value = v.max; v.dir = -1; }
-    if (v.value <= v.min) { v.value = v.min; v.dir = 1; }
-  }
-  if (!anyPlaying) return;
-  syncScope();
-  renderVarList();
-  scheduleRender();
-  requestAnimationFrame(animateVars);
-}
-
-function togglePlayAll() {
-  const anyPlaying = state.variables.some(v => v.playing);
-  for (const v of state.variables) v.playing = !anyPlaying;
-  renderVarList();
-  if (!anyPlaying) animateVars();
-}
-
-function renderVarList() {
-  const box = document.getElementById('varList');
-  box.innerHTML = '';
-
-  state.variables.forEach(v => {
-    const card = document.createElement('div');
-    card.className = 'var-row';
-    card.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
-
-    card.innerHTML = `
-      <span class="var-label">${esc(v.name)}</span>
-      <div class="var-range-group" style="flex:1;display:flex;flex-direction:column;gap:2px;">
-        <input type="range" class="var-slider" data-var="${v.name}"
-          min="${v.min}" max="${v.max}" step="0.01" value="${v.value}">
-      </div>
-      <span class="var-value" data-var-val="${v.name}">${v.value.toFixed(2)}</span>
-      <button class="icon-btn var-play-btn" data-var-play="${v.name}" title="${v.playing ? '暂停' : '播放'}"
-        style="color:${v.playing ? 'var(--accent)' : 'var(--text-tertiary)'}">
-        ${v.playing
-          ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><rect x="1" y="1" width="3.5" height="10" rx="1"/><rect x="7.5" y="1" width="3.5" height="10" rx="1"/></svg>'
-          : '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M2.5 1v10l8.5-5z"/></svg>'}
-      </button>
-      <button class="icon-btn" data-var-reset="${v.name}" title="重置" style="font-size:12px;">↺</button>
-      ${state.variables.length > 1
-        ? `<button class="icon-btn danger" data-var-del="${v.name}" title="删除" style="font-size:12px;">
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </button>`
-        : ''}
-    `;
-    box.appendChild(card);
-  });
-
-  // Event delegation
-  box.querySelectorAll('input[data-var]').forEach(slider => {
-    slider.addEventListener('input', () => {
-      const v = state.variables.find(v => v.name === slider.dataset.var);
-      if (!v) return;
-      v.value = parseFloat(slider.value);
-      syncScope();
-      const valEl = box.querySelector(`[data-var-val="${v.name}"]`);
-      if (valEl) valEl.textContent = v.value.toFixed(2);
-      scheduleRender();
+const SUGGESTIONS = [
+  // 三角函数
+  { fn: 'sin()', latex: '\\sin(x)' },
+  { fn: 'cos()', latex: '\\cos(x)' },
+  { fn: 'tan()', latex: '\\tan(x)' },
+  { fn: 'sec()', latex: '\\sec(x)' },
+  { fn: 'csc()', latex: '\\csc(x)' },
+  { fn: 'cot()', latex: '\\cot(x)' },
+  // 反三角
+  { fn: 'arcsin()', latex: '\\arcsin(x)' },
+  { fn: 'arccos()', latex: '\\arccos(x)' },
+  { fn: 'arctan()', latex: '\\arctan(x)' },
+  // 双曲
+  { fn: 'sinh()', latex: '\\sinh(x)' },
+  { fn: 'cosh()', latex: '\\cosh(x)' },
+  { fn: 'tanh()', latex: '\\tanh(x)' },
+  // 对数
+  { fn: 'log()', latex: '\\log(x)' },
+  { fn: 'log(,)', latex: '\\log_a(x)' },
+  { fn: 'ln()', latex: '\\ln(x)' },
+  { fn: 'log10()', latex: '\\log_{10}(x)' },
+  { fn: 'log2()', latex: '\\log_2(x)' },
+  // 指数
+  { fn: 'exp()', latex: 'e^x' },
+  { fn: 'a^x', latex: 'a^x' },
+  { fn: 'e^x', latex: 'e^x' },
+  { fn: '2^x', latex: '2^x' },
+  { fn: '10^x', latex: '10^x' },
+  // 根号
+  { fn: 'sqrt()', latex: '\\sqrt{x}' },
+  { fn: 'cbrt()', latex: '\\sqrt[3]{x}' },
+  { fn: 'nthRoot(,)', latex: '\\sqrt[n]{x}' },
+  { fn: 'sqrt(x^2+1)', latex: '\\sqrt{x^2+1}' },
+  // 幂
+  { fn: 'x^2', latex: 'x^2' },
+  { fn: 'x^3', latex: 'x^3' },
+  { fn: 'x^n', latex: 'x^n' },
+  { fn: '1/x', latex: '\\frac{1}{x}' },
+  { fn: '(x+a)^2', latex: '(x+a)^2' },
+  { fn: '(x-a)^2', latex: '(x-a)^2' },
+  // 绝对值/取整
+  { fn: 'abs()', latex: '|x|' },
+  { fn: 'sign()', latex: '\\operatorname{sgn}(x)' },
+  { fn: 'floor()', latex: '\\lfloor x\\rfloor' },
+  { fn: 'ceil()', latex: '\\lceil x\\rceil' },
+  { fn: 'round()', latex: '\\operatorname{round}(x)' },
+  // 组合/数论
+  { fn: 'gcd(,)', latex: '\\gcd(a,b)' },
+  { fn: 'lcm(,)', latex: '\\operatorname{lcm}(a,b)' },
+  { fn: 'mod(,)', latex: 'a \\bmod b' },
+  { fn: 'combinations(,)', latex: '\\binom{n}{k}' },
+  { fn: 'permutations(,)', latex: 'P(n,k)' },
+  // 阶乘/Gamma
+  { fn: 'factorial()', latex: 'n!' },
+  { fn: 'gamma()', latex: '\\Gamma(x)' },
+  // 多项式
+  { fn: 'x^2+x+1', latex: 'x^2+x+1' },
+  { fn: 'x^3-x', latex: 'x^3-x' },
+  { fn: 'x^3-3x', latex: 'x^3-3x' },
+  { fn: '1/x^2', latex: '\\frac{1}{x^2}' },
+  { fn: '1/(x+1)', latex: '\\frac{1}{x+1}' },
+  { fn: 'x/(x^2+1)', latex: '\\frac{x}{x^2+1}' },
+  // 常用组合
+  { fn: 'a*sin(b*x+c)+d', latex: 'a\\sin(bx+c)+d' },
+  { fn: 'sin(x)+cos(x)', latex: '\\sin(x)+\\cos(x)' },
+  { fn: 'sin(x)^2', latex: '\\sin^2(x)' },
+  { fn: 'cos(x)^2', latex: '\\cos^2(x)' },
+  { fn: 'tan(x)^2', latex: '\\tan^2(x)' },
+  { fn: 'sin(a*x)*cos(b*x)', latex: '\\sin(ax)\\cos(bx)' },
+  // 分段/其他
+  { fn: 'e^(-x^2)', latex: 'e^{-x^2}' },
+  { fn: 'sin(1/x)', latex: '\\sin\\left(\\frac{1}{x}\\right)' },
+  { fn: 'x*sin(1/x)', latex: 'x\\sin\\left(\\frac{1}{x}\\right)' },
+  { fn: 'sinc(x)', latex: '\\operatorname{sinc}(x)' },
+  // 常量
+  { fn: 'pi', latex: '\\pi' },
+  { fn: 'e', latex: 'e' },
+  { fn: 'i', latex: 'i' },
+  // 微积分
+  { fn: 'derivative', latex: 'f\'(x)' },
+  { fn: 'diff(,)', latex: '\\frac{d}{dx}f(x)' },
+];
+
+let suggestActiveIdx = -1;
+
+function showSuggestions(input) {
+  const dd = document.getElementById('suggestDropdown');
+  dd.innerHTML = '';
+  suggestActiveIdx = -1;
+
+  SUGGESTIONS.forEach((s, i) => {
+    const item = document.createElement('div');
+    item.className = 'suggest-item';
+    item.dataset.fn = s.fn;
+    item.innerHTML = `<span class="suggest-fn">${esc(s.fn)}</span><span class="suggest-latex"></span>`;
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      replaceCurrentWord(input, s.fn);
+      hideSuggestions();
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.focus();
     });
+    dd.appendChild(item);
+    try { katex.render(s.latex, item.querySelector('.suggest-latex'), { throwOnError: false, strict: false }); }
+    catch {}
   });
 
-  box.querySelectorAll('[data-var-play]').forEach(btn => {
-    btn.addEventListener('click', () => toggleVarPlay(btn.dataset.varPlay));
-  });
-
-  box.querySelectorAll('[data-var-reset]').forEach(btn => {
-    btn.addEventListener('click', () => resetVariable(btn.dataset.varReset));
-  });
-
-  box.querySelectorAll('[data-var-del]').forEach(btn => {
-    btn.addEventListener('click', () => removeVariable(btn.dataset.varDel));
-  });
+  const rect = input.getBoundingClientRect();
+  dd.style.left = rect.left + 'px';
+  dd.style.top = (rect.bottom + 4) + 'px';
+  dd.style.minWidth = Math.max(rect.width, 240) + 'px';
+  dd.classList.add('visible');
 }
 
-document.getElementById('addVarBtn').addEventListener('click', addVariable);
-
-/* ─── EXPORT PNG ─── */
-function exportPNG() {
-  const dataURL = canvas.toDataURL('image/png');
-  const modal = document.getElementById('exportModal');
-  document.getElementById('exportPreview').src = dataURL;
-  modal.classList.add('visible');
-
-  document.getElementById('downloadBtn').onclick = () => {
-    const a = document.createElement('a');
-    a.href = dataURL;
-    a.download = `graph_${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    closeExportModal();
-  };
+function hideSuggestions() {
+  document.getElementById('suggestDropdown').classList.remove('visible');
+  suggestActiveIdx = -1;
 }
 
-function closeExportModal() {
-  document.getElementById('exportModal').classList.remove('visible');
-}
-
-/* ─── KEYBOARD SHORTCUTS ─── */
-document.addEventListener('keydown', e => {
-  // Don't intercept if typing in an input
-  if (e.target.tagName === 'INPUT') return;
-
-  switch (e.key) {
-    case 'Escape': closeExportModal(); break;
-    case '=': case '+': zoomBy(1.4); break;
-    case '-': case '_': zoomBy(1/1.4); break;
-    case '0': resetView(); break;
-    case 't': case 'T': toggleTheme(); break;
-    case 's': case 'S': toggleSnap(); break;
-    case 'e': case 'E': exportPNG(); break;
-    case ' ': e.preventDefault(); togglePlayAll(); break;
+function handleSuggestKeynav(e, input) {
+  const dd = document.getElementById('suggestDropdown');
+  if (!dd.classList.contains('visible')) return;
+  const items = dd.querySelectorAll('.suggest-item');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    suggestActiveIdx = Math.min(suggestActiveIdx + 1, items.length - 1);
+    updateSuggestActive(items);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    suggestActiveIdx = Math.max(suggestActiveIdx - 1, -1);
+    updateSuggestActive(items);
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    if (suggestActiveIdx >= 0 && items[suggestActiveIdx]) {
+      e.preventDefault();
+      replaceCurrentWord(input, items[suggestActiveIdx].dataset.fn);
+      hideSuggestions();
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  } else if (e.key === 'Escape') {
+    hideSuggestions();
   }
-});
-
-/* ─── RESIZE ─── */
-window.addEventListener('resize', resizeCanvas);
-
-/* ─── EXPORT MODAL CLOSE ON BACKDROP ─── */
-document.getElementById('exportModal').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closeExportModal();
-});
-
-/* ═══════════════════════════════════════════════════════════
-   UTILITY FUNCTIONS
-   ═══════════════════════════════════════════════════════════ */
-function fmtNum(n) {
-  if (!isFinite(n)) return '—';
-  if (Math.abs(n) < 1e-12) return '0';
-  if (Math.abs(n) >= 1e6 || Math.abs(n) < 0.001) return n.toExponential(2);
-  let s = n.toPrecision(6);
-  // Strip trailing zeros after decimal
-  if (s.includes('.')) s = s.replace(/\.?0+$/, '');
-  return s;
 }
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y, x + r, y, r);
-  ctx.closePath();
+function updateSuggestActive(items) {
+  items.forEach((it, i) => it.classList.toggle('active', i === suggestActiveIdx));
+  if (suggestActiveIdx >= 0) items[suggestActiveIdx].scrollIntoView({ block: 'nearest' });
 }
 
-/* ═══════════════════════════════════════════════════════════
-   INITIALIZATION
-   ═══════════════════════════════════════════════════════════ */
-function init() {
-  resizeCanvas();
-  renderLoop();
-  syncScope();
-  renderVarList();
-  renderLayerList();
-}
-
-init();
-</script>
-</body>
-</html>
+function getCurrentWord(input) {
+  const pos = input.selectionStart;
+  const text = input.value;
+  let start = pos;
+  while (start > 0) {
+    const ch = text[start - 1];
+    if ('+-*/()^ '.includes(ch) || (ch >= '
